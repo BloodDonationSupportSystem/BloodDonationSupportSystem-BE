@@ -1,0 +1,6 @@
+@BloodDonationSupportSystem_HostAddress = http://localhost:5222
+
+GET {{BloodDonationSupportSystem_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
