@@ -21,6 +21,7 @@ namespace BusinessObjects.Data
         public DbSet<Location> Locations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<RequestMatch> RequestMatches { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,6 +33,13 @@ namespace BusinessObjects.Data
                 .WithMany()
                 .HasForeignKey(u => u.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // RefreshToken relationships
+            modelBuilder.Entity<RefreshToken>()
+                .HasOne(rt => rt.User)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(rt => rt.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // BlogPost relationships
             modelBuilder.Entity<BlogPost>()
@@ -104,7 +112,6 @@ namespace BusinessObjects.Data
                 .HasForeignKey(de => de.BloodGroupId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Fix the invalid member access expression
             modelBuilder.Entity<DonationEvent>()
                 .HasOne(de => de.ComponentType)
                 .WithMany(ct => ct.DonationEvents)
@@ -178,6 +185,21 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.RoleId);
+                
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.UserName)
+                .IsUnique();
+                
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(rt => rt.Token)
+                .IsUnique();
+
+            // Removed indices for EmailVerificationToken and PasswordResetToken
+            // Since we're using in-memory TokenStorage instead of database columns
 
             // Configure constraints and properties
             modelBuilder.Entity<BloodGroup>()

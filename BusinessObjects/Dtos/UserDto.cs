@@ -14,6 +14,7 @@ namespace BusinessObjects.Dtos
         public DateTimeOffset LastLogin { get; set; }
         public Guid RoleId { get; set; }
         public string RoleName { get; set; }
+        public bool IsEmailVerified { get; set; }
     }
 
     public class CreateUserDto
@@ -30,6 +31,10 @@ namespace BusinessObjects.Dtos
         [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be between 6 and 100 characters")]
         public string Password { get; set; }
 
+        [Required(ErrorMessage = "Confirm password is required")]
+        [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; }
+
         [Required(ErrorMessage = "First name is required")]
         [StringLength(50, ErrorMessage = "First name cannot be longer than 50 characters")]
         public string FirstName { get; set; }
@@ -43,6 +48,36 @@ namespace BusinessObjects.Dtos
 
         [Required(ErrorMessage = "Role ID is required")]
         public Guid RoleId { get; set; }
+    }
+
+    public class RegisterUserDto
+    {
+        [Required(ErrorMessage = "Username is required")]
+        [StringLength(50, ErrorMessage = "Username cannot be longer than 50 characters")]
+        public string UserName { get; set; }
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; }
+
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be between 6 and 100 characters")]
+        public string Password { get; set; }
+
+        [Required(ErrorMessage = "Confirm password is required")]
+        [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; }
+
+        [Required(ErrorMessage = "First name is required")]
+        [StringLength(50, ErrorMessage = "First name cannot be longer than 50 characters")]
+        public string FirstName { get; set; }
+
+        [Required(ErrorMessage = "Last name is required")]
+        [StringLength(50, ErrorMessage = "Last name cannot be longer than 50 characters")]
+        public string LastName { get; set; }
+
+        [Phone(ErrorMessage = "Invalid phone number format")]
+        public string PhoneNumber { get; set; }
     }
 
     public class UpdateUserDto
@@ -90,5 +125,69 @@ namespace BusinessObjects.Dtos
         [Required(ErrorMessage = "Confirm password is required")]
         [Compare("NewPassword", ErrorMessage = "The new password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; }
+    }
+
+    public class ForgotPasswordDto
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; }
+    }
+
+    public class ResetPasswordDto
+    {
+        [Required(ErrorMessage = "Token is required")]
+        public string Token { get; set; }
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; }
+
+        [Required(ErrorMessage = "New password is required")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be between 6 and 100 characters")]
+        public string NewPassword { get; set; }
+
+        [Required(ErrorMessage = "Confirm password is required")]
+        [Compare("NewPassword", ErrorMessage = "The new password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; }
+    }
+
+    public class VerifyEmailDto
+    {
+        [Required(ErrorMessage = "User ID is required")]
+        public string UserId { get; set; }
+
+        [Required(ErrorMessage = "Token is required")]
+        public string Token { get; set; }
+    }
+
+    public class TokenResponseDto
+    {
+        public string AccessToken { get; set; }
+        public string RefreshToken { get; set; }
+        public DateTimeOffset Expiration { get; set; }
+        public UserDto User { get; set; }
+    }
+
+    public class ResendVerificationRequest
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; }
+    }
+
+    public class RefreshTokenRequest
+    {
+        [Required(ErrorMessage = "Access token is required")]
+        public string AccessToken { get; set; }
+
+        [Required(ErrorMessage = "Refresh token is required")]
+        public string RefreshToken { get; set; }
+    }
+
+    public class RevokeTokenRequest
+    {
+        [Required(ErrorMessage = "Refresh token is required")]
+        public string RefreshToken { get; set; }
     }
 }

@@ -14,7 +14,21 @@ namespace Services.Interface
         Task<ApiResponse<UserDto>> CreateUserAsync(CreateUserDto userDto);
         Task<ApiResponse<UserDto>> UpdateUserAsync(Guid id, UpdateUserDto userDto);
         Task<ApiResponse> DeleteUserAsync(Guid id);
-        Task<ApiResponse<UserDto>> AuthenticateAsync(UserLoginDto loginDto);
+        Task<ApiResponse<TokenResponseDto>> AuthenticateAsync(UserLoginDto loginDto);
+        Task<ApiResponse<TokenResponseDto>> RefreshTokenAsync(string accessToken, string refreshToken);
+        Task<ApiResponse> RevokeTokenAsync(string refreshToken);
         Task<ApiResponse> ChangePasswordAsync(Guid userId, ChangePasswordDto passwordDto);
+        
+        // Registration methods (simplified)
+        Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto);
+        Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto, string roleName);
+        
+        // Password reset (simplified)
+        Task<ApiResponse> ResetPasswordAsync(ResetPasswordDto resetPasswordDto);
+        
+        // Kept for backward compatibility but they do nothing now
+        Task<ApiResponse> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto);
+        Task<ApiResponse> VerifyEmailAsync(VerifyEmailDto verifyEmailDto);
+        Task<ApiResponse> ResendVerificationEmailAsync(string email);
     }
 }

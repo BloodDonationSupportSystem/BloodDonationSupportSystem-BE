@@ -23,6 +23,7 @@ namespace Repositories.Base
         private IDonorProfileRepository _donorProfileRepository;
         private INotificationRepository _notificationRepository;
         private IRequestMatchRepository _requestMatchRepository;
+        private IRefreshTokenRepository _refreshTokenRepository;
 
         public UnitOfWork(ApplicationDbContext context)
         {
@@ -43,6 +44,7 @@ namespace Repositories.Base
         public IDonorProfileRepository DonorProfiles => _donorProfileRepository ??= new DonorProfileRepository(_context);
         public INotificationRepository Notifications => _notificationRepository ??= new NotificationRepository(_context);
         public IRequestMatchRepository RequestMatches => _requestMatchRepository ??= new RequestMatchRepository(_context);
+        public IRefreshTokenRepository RefreshTokens => _refreshTokenRepository ??= new RefreshTokenRepository(_context);
 
         public async Task<int> CompleteAsync()
         {

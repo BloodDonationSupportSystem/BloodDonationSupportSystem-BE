@@ -17,6 +17,9 @@ namespace BusinessObjects.Models
         public string PhoneNumber { get; set; } = string.Empty;
         public DateTimeOffset LastLogin { get; set; } = DateTimeOffset.UtcNow;
         public Guid RoleId { get; set; } = Guid.Empty;
-        public virtual Role Role { get; set; } = new Role();
+        public virtual Role Role { get; set; }
+        
+        // Navigation properties
+        public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }

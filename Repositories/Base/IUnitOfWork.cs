@@ -20,6 +20,7 @@ namespace Repositories.Base
         IDonorProfileRepository DonorProfiles { get; }
         INotificationRepository Notifications { get; }
         IRequestMatchRepository RequestMatches { get; }
+        IRefreshTokenRepository RefreshTokens { get; }
         
         Task<int> CompleteAsync();
     }

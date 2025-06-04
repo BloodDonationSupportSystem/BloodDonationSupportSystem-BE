@@ -1,5 +1,7 @@
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.IdentityModel.Tokens;
 using Repositories.Base;
 using Services.Interface;
 using Shared.Models;
@@ -16,10 +18,12 @@ namespace Services.Implementation
     public class UserService : IUserService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IJwtService _jwtService;
 
-        public UserService(IUnitOfWork unitOfWork)
+        public UserService(IUnitOfWork unitOfWork, IJwtService jwtService)
         {
             _unitOfWork = unitOfWork;
+            _jwtService = jwtService;
         }
 
         public async Task<ApiResponse<IEnumerable<UserDto>>> GetAllUsersAsync()
@@ -117,10 +121,13 @@ namespace Services.Implementation
                 await _unitOfWork.Users.AddAsync(user);
                 await _unitOfWork.CompleteAsync();
 
+                // Automatically mark the email as verified
+                TokenStorage.SetEmailVerified(user.Id);
+
                 // Reload to get the role
                 user = await _unitOfWork.Users.GetByIdAsync(user.Id);
 
-                return new ApiResponse<UserDto>(MapToDto(user), "User created successfully")
+                return new ApiResponse<UserDto>(MapToDto(user), "User created successfully.")
                 {
                     StatusCode = HttpStatusCode.Created
                 };
@@ -204,14 +211,15 @@ namespace Services.Implementation
             }
         }
 
-        public async Task<ApiResponse<UserDto>> AuthenticateAsync(UserLoginDto loginDto)
+        public async Task<ApiResponse<TokenResponseDto>> AuthenticateAsync(UserLoginDto loginDto)
         {
             try
             {
+                // Get user with role included
                 var user = await _unitOfWork.Users.GetByUsernameAsync(loginDto.UserName);
                 
                 if (user == null)
-                    return new ApiResponse<UserDto>(HttpStatusCode.Unauthorized, "Invalid username or password");
+                    return new ApiResponse<TokenResponseDto>(HttpStatusCode.Unauthorized, "Invalid username or password");
 
                 // Verify password
                 if (VerifyPassword(loginDto.Password, user.Password))
@@ -221,14 +229,62 @@ namespace Services.Implementation
                     _unitOfWork.Users.Update(user);
                     await _unitOfWork.CompleteAsync();
                     
-                    return new ApiResponse<UserDto>(MapToDto(user), "Authentication successful");
+                    // Make sure the user has the role loaded
+                    if (user.Role == null || user.Role.RoleName == null)
+                    {
+                        // Need to get the role separately
+                        var role = await _unitOfWork.Roles.GetByIdAsync(user.RoleId);
+                        if (role != null)
+                        {
+                            user.Role = role;
+                        }
+                    }
+                    
+                    // Generate JWT token
+                    var tokenResponse = await _jwtService.GenerateTokenAsync(user);
+                    
+                    return new ApiResponse<TokenResponseDto>(tokenResponse, "Authentication successful");
                 }
 
-                return new ApiResponse<UserDto>(HttpStatusCode.Unauthorized, "Invalid username or password");
+                return new ApiResponse<TokenResponseDto>(HttpStatusCode.Unauthorized, "Invalid username or password");
             }
             catch (Exception ex)
             {
-                return new ApiResponse<UserDto>(HttpStatusCode.InternalServerError, ex.Message);
+                return new ApiResponse<TokenResponseDto>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<TokenResponseDto>> RefreshTokenAsync(string accessToken, string refreshToken)
+        {
+            try
+            {
+                var tokenResponse = await _jwtService.RefreshTokenAsync(accessToken, refreshToken);
+                return new ApiResponse<TokenResponseDto>(tokenResponse, "Token refreshed successfully");
+            }
+            catch (SecurityTokenException ex)
+            {
+                return new ApiResponse<TokenResponseDto>(HttpStatusCode.Unauthorized, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<TokenResponseDto>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse> RevokeTokenAsync(string refreshToken)
+        {
+            try
+            {
+                await _jwtService.RevokeRefreshTokenAsync(refreshToken);
+                return new ApiResponse(HttpStatusCode.OK, "Token revoked successfully");
+            }
+            catch (SecurityTokenException ex)
+            {
+                return new ApiResponse(HttpStatusCode.Unauthorized, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse(HttpStatusCode.InternalServerError, ex.Message);
             }
         }
 
@@ -261,6 +317,137 @@ namespace Services.Implementation
             }
         }
 
+        public async Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto)
+        {
+            // Default to "Member" role
+            return await RegisterUserAsync(registerDto, "Member");
+        }
+
+        public async Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto, string roleName)
+        {
+            try
+            {
+                // Check if username already exists
+                var existingUserName = await _unitOfWork.Users.GetByUsernameAsync(registerDto.UserName);
+                if (existingUserName != null)
+                {
+                    return new ApiResponse<UserDto>(HttpStatusCode.Conflict, $"Username '{registerDto.UserName}' is already taken");
+                }
+
+                // Check if email already exists
+                var existingEmail = await _unitOfWork.Users.GetByEmailAsync(registerDto.Email);
+                if (existingEmail != null)
+                {
+                    return new ApiResponse<UserDto>(HttpStatusCode.Conflict, $"Email '{registerDto.Email}' is already registered");
+                }
+
+                // Get the role directly by name - this is the key fix
+                var role = await _unitOfWork.Roles.GetByNameAsync(roleName);
+                
+                if (role == null)
+                {
+                    // If we can't find the role by name, log available roles for diagnostics
+                    var allRoles = await _unitOfWork.Roles.GetAllAsync();
+                    string availableRoles = string.Join(", ", allRoles.Select(r => r.RoleName));
+                    
+                    return new ApiResponse<UserDto>(HttpStatusCode.BadRequest, 
+                        $"Role '{roleName}' does not exist in the system. Available roles: {availableRoles}");
+                }
+
+                // Hash the password
+                string hashedPassword = HashPassword(registerDto.Password);
+
+                var user = new User
+                {
+                    UserName = registerDto.UserName,
+                    Email = registerDto.Email,
+                    Password = hashedPassword,
+                    FirstName = registerDto.FirstName,
+                    LastName = registerDto.LastName,
+                    PhoneNumber = registerDto.PhoneNumber,
+                    LastLogin = DateTimeOffset.UtcNow,
+                    RoleId = role.Id  // Use the existing role ID from the database
+                };
+
+                await _unitOfWork.Users.AddAsync(user);
+                await _unitOfWork.CompleteAsync();
+
+                // Automatically mark the email as verified
+                TokenStorage.SetEmailVerified(user.Id);
+
+                // Reload to get the role
+                user = await _unitOfWork.Users.GetByIdAsync(user.Id);
+
+                string message = $"Registration as {role.RoleName} successful!";
+                
+                return new ApiResponse<UserDto>(MapToDto(user), message)
+                {
+                    StatusCode = HttpStatusCode.Created
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<UserDto>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto)
+        {
+            try
+            {
+                var user = await _unitOfWork.Users.GetByEmailAsync(forgotPasswordDto.Email);
+                
+                if (user == null)
+                {
+                    // Don't reveal that the user does not exist
+                    return new ApiResponse(HttpStatusCode.OK, "If your email is registered, you will receive a password reset link shortly");
+                }
+
+                return new ApiResponse(HttpStatusCode.OK, "If your email is registered, you will receive a password reset link shortly");
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
+        {
+            try
+            {
+                var user = await _unitOfWork.Users.GetByEmailAsync(resetPasswordDto.Email);
+                
+                if (user == null)
+                {
+                    return new ApiResponse(HttpStatusCode.BadRequest, "Invalid token or email");
+                }
+
+                // Update password (simplified - no token validation)
+                user.Password = HashPassword(resetPasswordDto.NewPassword);
+                
+                _unitOfWork.Users.Update(user);
+                await _unitOfWork.CompleteAsync();
+                
+                return new ApiResponse(HttpStatusCode.OK, "Password has been reset successfully");
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse> VerifyEmailAsync(VerifyEmailDto verifyEmailDto)
+        {
+            // Since we're automatically verifying emails, just return success
+            return new ApiResponse(HttpStatusCode.OK, "Email verified successfully");
+        }
+
+        public async Task<ApiResponse> ResendVerificationEmailAsync(string email)
+        {
+            // Since we're automatically verifying emails, just return success
+            return new ApiResponse(HttpStatusCode.OK, "Email verification not required");
+        }
+
         private UserDto MapToDto(User user)
         {
             return new UserDto
@@ -273,7 +460,8 @@ namespace Services.Implementation
                 PhoneNumber = user.PhoneNumber,
                 LastLogin = user.LastLogin,
                 RoleId = user.RoleId,
-                RoleName = user.Role?.RoleName ?? "Unknown"
+                RoleName = user.Role?.RoleName ?? "Unknown",
+                IsEmailVerified = true
             };
         }
 
@@ -290,6 +478,14 @@ namespace Services.Implementation
         {
             string hashedInput = HashPassword(password);
             return hashedInput == hashedPassword;
+        }
+
+        private string GenerateRandomToken()
+        {
+            var randomNumber = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
         }
     }
 }

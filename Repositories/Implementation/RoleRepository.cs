@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Repositories.Base;
 using Repositories.Interface;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Repositories.Implementation
@@ -16,7 +17,10 @@ namespace Repositories.Implementation
 
         public async Task<Role> GetByNameAsync(string roleName)
         {
-            return await _dbSet.FirstOrDefaultAsync(r => r.RoleName == roleName);
+            // Load all roles and then filter with case-insensitive comparison
+            var roles = await _dbSet.ToListAsync();
+            return roles.FirstOrDefault(r => 
+                string.Equals(r.RoleName, roleName, StringComparison.OrdinalIgnoreCase));
         }
     }
 }
