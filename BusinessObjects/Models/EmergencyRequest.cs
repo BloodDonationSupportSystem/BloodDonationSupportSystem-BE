@@ -16,8 +16,8 @@ namespace BusinessObjects.Models
         public string ContactInfo { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public Guid BloodGroupId { get; set; } = Guid.Empty;
-        public virtual BloodGroup BloodGroup { get; set; } = new BloodGroup();
+        public virtual BloodGroup BloodGroup { get; set; }
         public Guid ComponentTypeId { get; set; } = Guid.Empty;
-        public virtual ComponentType ComponentType { get; set; } = new ComponentType();
+        public virtual ComponentType ComponentType { get; set; }
     }
 }

@@ -12,10 +12,10 @@ namespace BusinessObjects.Models
         public DateTimeOffset MatchDate { get; set; } = DateTimeOffset.UtcNow;
         public int UnitsAssigned { get; set; }
         public Guid RequestId { get; set; } = Guid.Empty;
-        public virtual BloodRequest BloodRequest { get; set; } = new BloodRequest();
+        public virtual BloodRequest BloodRequest { get; set; }
         public Guid EmergencyRequestId { get; set; } = Guid.Empty;
-        public virtual EmergencyRequest EmergencyRequest { get; set; } = new EmergencyRequest();
+        public virtual EmergencyRequest EmergencyRequest { get; set; }
         public Guid DonationEventId { get; set; } = Guid.Empty;
-        public virtual DonationEvent DonationEvent { get; set; } = new DonationEvent();
+        public virtual DonationEvent DonationEvent { get; set; }
     }
 }

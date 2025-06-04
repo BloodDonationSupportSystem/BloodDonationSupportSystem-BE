@@ -9,6 +9,6 @@
         public DateTimeOffset CreatedDate { get; set; } = DateTimeOffset.UtcNow;
 
         public Guid CreatedBy { get; set; } = Guid.Empty;
-        public virtual User User { get; set; } = new User();
+        public virtual User User { get; set; }
     }
 }

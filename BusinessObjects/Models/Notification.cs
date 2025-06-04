@@ -7,6 +7,6 @@
         public string Message { get; set; } = string.Empty;
         public bool IsRead { get; set; } = false;
         public Guid UserId { get; set; } = Guid.Empty;
-        public virtual User User { get; set; } = new User();
+        public virtual User User { get; set; }
     }
 }

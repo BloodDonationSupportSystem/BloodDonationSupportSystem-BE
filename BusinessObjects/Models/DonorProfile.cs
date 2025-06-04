@@ -20,8 +20,8 @@ namespace BusinessObjects.Models
         public string Longitude { get; set; } = string.Empty;
 
         public Guid UserId { get; set; } = Guid.Empty;
-        public virtual User User { get; set; } = new User();
+        public virtual User User { get; set; }
         public Guid BloodGroupId { get; set; } = Guid.Empty;
-        public virtual BloodGroup BloodGroup { get; set; } = new BloodGroup();
+        public virtual BloodGroup BloodGroup { get; set; }
     }
 }

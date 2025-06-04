@@ -14,12 +14,12 @@ namespace BusinessObjects.Models
         public string Status { get; set; } = string.Empty;
 
         public Guid DonorId { get; set; } = Guid.Empty;
-        public virtual DonorProfile DonorProfile { get; set; } = new DonorProfile();
+        public virtual DonorProfile DonorProfile { get; set; }
         public Guid BloodGroupId { get; set; } = Guid.Empty;
-        public virtual BloodGroup BloodGroup { get; set; } = new BloodGroup();
+        public virtual BloodGroup BloodGroup { get; set; }
         public Guid ComponentTypeId { get; set; } = Guid.Empty;
-        public virtual ComponentType ComponentType { get; set; } = new ComponentType();
+        public virtual ComponentType ComponentType { get; set; }
         public Guid LocationId { get; set; } = Guid.Empty;
-        public virtual Location Location { get; set; } = new Location();
+        public virtual Location Location { get; set; }
     }
 }
