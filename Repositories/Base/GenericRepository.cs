@@ -30,7 +30,7 @@ namespace Repositories.Base
             return await _dbSet.Where(expression).ToListAsync();
         }
 
-        public async Task<T> GetByIdAsync(Guid id)
+        public virtual async Task<T> GetByIdAsync(Guid id)
         {
             return await _dbSet.FindAsync(id);
         }

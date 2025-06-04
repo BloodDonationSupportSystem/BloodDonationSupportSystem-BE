@@ -10,6 +10,19 @@ namespace Repositories.Base
     {
         private readonly ApplicationDbContext _context;
         private ILocationRepository _locationRepository;
+        private IBloodGroupRepository _bloodGroupRepository;
+        private IComponentTypeRepository _componentTypeRepository;
+        private IRoleRepository _roleRepository;
+        private IUserRepository _userRepository;
+        private IBloodRequestRepository _bloodRequestRepository;
+        private IDonationEventRepository _donationEventRepository;
+        private IEmergencyRequestRepository _emergencyRequestRepository;
+        private IBloodInventoryRepository _bloodInventoryRepository;
+        private IBlogPostRepository _blogPostRepository;
+        private IDocumentRepository _documentRepository;
+        private IDonorProfileRepository _donorProfileRepository;
+        private INotificationRepository _notificationRepository;
+        private IRequestMatchRepository _requestMatchRepository;
 
         public UnitOfWork(ApplicationDbContext context)
         {
@@ -17,6 +30,19 @@ namespace Repositories.Base
         }
 
         public ILocationRepository Locations => _locationRepository ??= new LocationRepository(_context);
+        public IBloodGroupRepository BloodGroups => _bloodGroupRepository ??= new BloodGroupRepository(_context);
+        public IComponentTypeRepository ComponentTypes => _componentTypeRepository ??= new ComponentTypeRepository(_context);
+        public IRoleRepository Roles => _roleRepository ??= new RoleRepository(_context);
+        public IUserRepository Users => _userRepository ??= new UserRepository(_context);
+        public IBloodRequestRepository BloodRequests => _bloodRequestRepository ??= new BloodRequestRepository(_context);
+        public IDonationEventRepository DonationEvents => _donationEventRepository ??= new DonationEventRepository(_context);
+        public IEmergencyRequestRepository EmergencyRequests => _emergencyRequestRepository ??= new EmergencyRequestRepository(_context);
+        public IBloodInventoryRepository BloodInventories => _bloodInventoryRepository ??= new BloodInventoryRepository(_context);
+        public IBlogPostRepository BlogPosts => _blogPostRepository ??= new BlogPostRepository(_context);
+        public IDocumentRepository Documents => _documentRepository ??= new DocumentRepository(_context);
+        public IDonorProfileRepository DonorProfiles => _donorProfileRepository ??= new DonorProfileRepository(_context);
+        public INotificationRepository Notifications => _notificationRepository ??= new NotificationRepository(_context);
+        public IRequestMatchRepository RequestMatches => _requestMatchRepository ??= new RequestMatchRepository(_context);
 
         public async Task<int> CompleteAsync()
         {

@@ -7,10 +7,19 @@ namespace Repositories.Base
     public interface IUnitOfWork : IDisposable
     {
         ILocationRepository Locations { get; }
-        //IBloodRequestRepository BloodRequests { get; }
-        //IBloodGroupRepository BloodGroups { get; }
-        //IComponentTypeRepository ComponentTypes { get; }
-        //IUserRepository Users { get; }
+        IBloodGroupRepository BloodGroups { get; }
+        IComponentTypeRepository ComponentTypes { get; }
+        IRoleRepository Roles { get; }
+        IUserRepository Users { get; }
+        IBloodRequestRepository BloodRequests { get; }
+        IDonationEventRepository DonationEvents { get; }
+        IEmergencyRequestRepository EmergencyRequests { get; }
+        IBloodInventoryRepository BloodInventories { get; }
+        IBlogPostRepository BlogPosts { get; }
+        IDocumentRepository Documents { get; }
+        IDonorProfileRepository DonorProfiles { get; }
+        INotificationRepository Notifications { get; }
+        IRequestMatchRepository RequestMatches { get; }
         
         Task<int> CompleteAsync();
     }

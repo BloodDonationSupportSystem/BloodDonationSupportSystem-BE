@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Repositories.Interface
 {
-    public interface IBloodGroupRepository : IGenericRepository<BloodGroup>
+    public interface IBlogPostRepository : IGenericRepository<BlogPost>
     {
-        Task<BloodGroup> GetByNameAsync(string groupName);
+        Task<BlogPost> GetByIdWithAuthorAsync(Guid id);
     }
 }
