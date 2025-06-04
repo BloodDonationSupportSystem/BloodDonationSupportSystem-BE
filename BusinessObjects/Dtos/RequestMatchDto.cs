@@ -1,5 +1,6 @@
-using System;
 using Shared.Models;
+using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace BusinessObjects.Dtos
 {
@@ -20,17 +21,27 @@ namespace BusinessObjects.Dtos
 
     public class CreateRequestMatchDto
     {
+        [Required(ErrorMessage = "Request ID is required")]
         public Guid RequestId { get; set; }
+
+        [Required(ErrorMessage = "Emergency request ID is required")]
         public Guid EmergencyRequestId { get; set; }
+
+        [Required(ErrorMessage = "Donation event ID is required")]
         public Guid DonationEventId { get; set; }
+
+        [Required(ErrorMessage = "Units assigned is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Units assigned must be greater than 0")]
         public int UnitsAssigned { get; set; }
     }
 
     public class UpdateRequestMatchDto
     {
+        [Required(ErrorMessage = "Units assigned is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "Units assigned must be greater than 0")]
         public int UnitsAssigned { get; set; }
     }
-    
+
     public class RequestMatchParameters : PaginationParameters
     {
         public Guid? RequestId { get; set; }
