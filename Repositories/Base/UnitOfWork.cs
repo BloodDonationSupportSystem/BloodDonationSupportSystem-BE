@@ -22,8 +22,10 @@ namespace Repositories.Base
         private IDocumentRepository _documentRepository;
         private IDonorProfileRepository _donorProfileRepository;
         private INotificationRepository _notificationRepository;
-        private IRequestMatchRepository _requestMatchRepository;
         private IRefreshTokenRepository _refreshTokenRepository;
+        private IBloodDonationWorkflowRepository _bloodDonationWorkflowRepository;
+        private IDonorReminderSettingsRepository _donorReminderSettingsRepository;
+        private IAnalyticsRepository _analyticsRepository;
 
         public UnitOfWork(ApplicationDbContext context)
         {
@@ -43,8 +45,10 @@ namespace Repositories.Base
         public IDocumentRepository Documents => _documentRepository ??= new DocumentRepository(_context);
         public IDonorProfileRepository DonorProfiles => _donorProfileRepository ??= new DonorProfileRepository(_context);
         public INotificationRepository Notifications => _notificationRepository ??= new NotificationRepository(_context);
-        public IRequestMatchRepository RequestMatches => _requestMatchRepository ??= new RequestMatchRepository(_context);
         public IRefreshTokenRepository RefreshTokens => _refreshTokenRepository ??= new RefreshTokenRepository(_context);
+        public IBloodDonationWorkflowRepository BloodDonationWorkflows => _bloodDonationWorkflowRepository ??= new BloodDonationWorkflowRepository(_context);
+        public IDonorReminderSettingsRepository DonorReminderSettings => _donorReminderSettingsRepository ??= new DonorReminderSettingsRepository(_context);
+        public IAnalyticsRepository Analytics => _analyticsRepository ??= new AnalyticsRepository(_context);
 
         public async Task<int> CompleteAsync()
         {

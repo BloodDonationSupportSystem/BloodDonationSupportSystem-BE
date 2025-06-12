@@ -1,4 +1,5 @@
 using BusinessObjects.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.Interface;
 using Shared.Models;
@@ -10,6 +11,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // M?c ??nh yêu c?u ??ng nh?p cho t?t c? các endpoints
     public class ComponentTypesController : BaseApiController
     {
         private readonly IComponentTypeService _componentTypeService;
@@ -21,6 +23,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/ComponentTypes
         [HttpGet]
+        [AllowAnonymous] // Cho phép ng??i dùng ch?a ??ng nh?p xem thông tin các thành ph?n máu
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<ComponentTypeDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetComponentTypes()
@@ -31,6 +34,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/ComponentTypes/5
         [HttpGet("{id}")]
+        [AllowAnonymous] // Cho phép ng??i dùng ch?a ??ng nh?p xem thông tin chi ti?t thành ph?n máu
         [ProducesResponseType(typeof(ApiResponse<ComponentTypeDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -42,9 +46,9 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/ComponentTypes
         [HttpPost]
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n thêm m?i thành ph?n máu
         [ProducesResponseType(typeof(ApiResponse<ComponentTypeDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 409)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> PostComponentType([FromBody] CreateComponentTypeDto componentTypeDto)
         {
@@ -59,10 +63,10 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/ComponentTypes/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n c?p nh?t thành ph?n máu
         [ProducesResponseType(typeof(ApiResponse<ComponentTypeDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
-        [ProducesResponseType(typeof(ApiResponse), 409)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> PutComponentType(Guid id, [FromBody] UpdateComponentTypeDto componentTypeDto)
         {
@@ -77,6 +81,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // DELETE: api/ComponentTypes/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")] // Ch? Admin m?i có quy?n xóa thành ph?n máu
         [ProducesResponseType(typeof(ApiResponse), 204)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]

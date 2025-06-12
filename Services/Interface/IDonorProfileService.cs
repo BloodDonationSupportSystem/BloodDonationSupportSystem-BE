@@ -16,5 +16,12 @@ namespace Services.Interface
         Task<ApiResponse<DonorProfileDto>> UpdateDonorProfileAsync(Guid id, UpdateDonorProfileDto donorProfileDto);
         Task<ApiResponse> DeleteDonorProfileAsync(Guid id);
         Task<PagedApiResponse<DonorProfileDto>> GetPagedDonorProfilesAsync(DonorProfileParameters parameters);
+        Task<ApiResponse<IEnumerable<DonorProfileDto>>> GetAvailableDonorsAsync(DateTimeOffset? date = null, bool? forEmergency = null);
+        Task<ApiResponse<DonorProfileDto>> UpdateDonationAvailabilityAsync(UpdateDonationAvailabilityDto availabilityDto);
+        
+        // New distance-based search methods
+        Task<ApiResponse<IEnumerable<DonorProfileDto>>> GetDonorsByDistanceAsync(double latitude, double longitude, double radiusKm, Guid? bloodGroupId = null);
+        Task<ApiResponse<IEnumerable<DonorProfileDto>>> GetAvailableDonorsByDistanceAsync(NearbyDonorSearchDto searchDto);
+        Task<PagedApiResponse<DonorProfileDto>> GetPagedDonorsByDistanceAsync(double latitude, double longitude, double radiusKm, DonorProfileParameters parameters);
     }
 }

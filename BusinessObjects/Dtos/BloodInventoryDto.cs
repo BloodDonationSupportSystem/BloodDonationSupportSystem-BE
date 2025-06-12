@@ -1,4 +1,4 @@
-using Shared.Models;
+﻿using Shared.Models;
 using System;
 using System.ComponentModel.DataAnnotations;
 
@@ -61,6 +61,16 @@ namespace BusinessObjects.Dtos
         
         [Required(ErrorMessage = "Inventory source is required")]
         public string InventorySource { get; set; }
+    }
+
+    // Thêm DTO mới cho việc cập nhật trạng thái kho máu
+    public class UpdateBloodInventoryStatusDto
+    {
+        [Required(ErrorMessage = "Status is required")]
+        public string Status { get; set; }
+        
+        [StringLength(500, ErrorMessage = "Notes cannot be longer than 500 characters")]
+        public string Notes { get; set; }
     }
 
     public class BloodInventoryParameters : PaginationParameters

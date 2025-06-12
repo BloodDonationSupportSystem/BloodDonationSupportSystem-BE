@@ -19,9 +19,14 @@ namespace BusinessObjects.Models
         public string Latitude { get; set; } = string.Empty;
         public string Longitude { get; set; } = string.Empty;
 
+        // Thêm thông tin về thời điểm sẵn sàng hiến máu
+        public DateTimeOffset? NextAvailableDonationDate { get; set; }
+        public bool IsAvailableForEmergency { get; set; } = false;
+        public string PreferredDonationTime { get; set; } = string.Empty;
+
         public Guid UserId { get; set; } = Guid.Empty;
-        public virtual User User { get; set; }
+        public virtual User User { get; set; } = null!;
         public Guid BloodGroupId { get; set; } = Guid.Empty;
-        public virtual BloodGroup BloodGroup { get; set; }
+        public virtual BloodGroup BloodGroup { get; set; } = null!;
     }
 }

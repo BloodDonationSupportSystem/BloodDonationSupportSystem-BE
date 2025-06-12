@@ -9,6 +9,7 @@ using Repositories.Base;
 using Repositories.Interface;
 using Services.Interface;
 using Shared.Models;
+using Shared.Utilities;
 
 namespace Services.Implementation
 {
@@ -178,6 +179,101 @@ namespace Services.Implementation
             }
         }
 
+        public async Task<ApiResponse<IEnumerable<BloodRequestDto>>> GetBloodRequestsByDistanceAsync(
+            double latitude, 
+            double longitude, 
+            double radiusKm, 
+            Guid? bloodGroupId = null, 
+            string status = null)
+        {
+            try
+            {
+                var requests = await _unitOfWork.BloodRequests.GetBloodRequestsByDistanceAsync(
+                    latitude, longitude, radiusKm, bloodGroupId, status);
+                
+                var requestDtos = requests.Select(request => {
+                    var dto = MapToDto(request);
+                    
+                    // Add distance information
+                    if (request.Location != null && 
+                        !string.IsNullOrEmpty(request.Location.Latitude) && 
+                        !string.IsNullOrEmpty(request.Location.Longitude))
+                    {
+                        if (double.TryParse(request.Location.Latitude, out double requestLat) && 
+                            double.TryParse(request.Location.Longitude, out double requestLon))
+                        {
+                            dto.DistanceKm = GeoCalculator.CalculateDistance(latitude, longitude, requestLat, requestLon);
+                            dto.Latitude = request.Location.Latitude;
+                            dto.Longitude = request.Location.Longitude;
+                        }
+                    }
+                    
+                    return dto;
+                }).ToList();
+                
+                return new ApiResponse<IEnumerable<BloodRequestDto>>(
+                    requestDtos,
+                    $"Found {requestDtos.Count} blood requests within {radiusKm}km");
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<IEnumerable<BloodRequestDto>>(
+                    HttpStatusCode.InternalServerError,
+                    $"Error occurred while searching for nearby blood requests: {ex.Message}");
+            }
+        }
+
+        public async Task<PagedApiResponse<BloodRequestDto>> GetPagedBloodRequestsByDistanceAsync(
+            double latitude, 
+            double longitude, 
+            double radiusKm, 
+            BloodRequestParameters parameters)
+        {
+            try
+            {
+                var (requests, totalCount) = await _unitOfWork.BloodRequests.GetPagedBloodRequestsByDistanceAsync(
+                    latitude, longitude, radiusKm, parameters);
+                
+                var requestDtos = requests.Select(request => {
+                    var dto = MapToDto(request);
+                    
+                    // Add distance information
+                    if (request.Location != null && 
+                        !string.IsNullOrEmpty(request.Location.Latitude) && 
+                        !string.IsNullOrEmpty(request.Location.Longitude))
+                    {
+                        if (double.TryParse(request.Location.Latitude, out double requestLat) && 
+                            double.TryParse(request.Location.Longitude, out double requestLon))
+                        {
+                            dto.DistanceKm = GeoCalculator.CalculateDistance(latitude, longitude, requestLat, requestLon);
+                            dto.Latitude = request.Location.Latitude;
+                            dto.Longitude = request.Location.Longitude;
+                        }
+                    }
+                    
+                    return dto;
+                }).ToList();
+                
+                return new PagedApiResponse<BloodRequestDto>(
+                    requestDtos,
+                    totalCount,
+                    parameters.PageNumber,
+                    parameters.PageSize)
+                {
+                    Message = $"Found {requestDtos.Count} blood requests within {radiusKm}km (Page {parameters.PageNumber} of {Math.Ceiling((double)totalCount / parameters.PageSize)})"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new PagedApiResponse<BloodRequestDto>
+                {
+                    Success = false,
+                    StatusCode = HttpStatusCode.InternalServerError,
+                    Message = $"Error occurred while searching for nearby blood requests: {ex.Message}"
+                };
+            }
+        }
+
         private BloodRequestDto MapToDto(BloodRequest bloodRequest)
         {
             return new BloodRequestDto
@@ -194,7 +290,9 @@ namespace Services.Implementation
                 ComponentTypeId = bloodRequest.ComponentTypeId,
                 ComponentTypeName = bloodRequest.ComponentType?.Name ?? "",
                 LocationId = bloodRequest.LocationId,
-                LocationName = bloodRequest.Location?.Name ?? ""
+                LocationName = bloodRequest.Location?.Name ?? "",
+                Latitude = bloodRequest.Location?.Latitude ?? "",
+                Longitude = bloodRequest.Location?.Longitude ?? ""
             };
         }
     }

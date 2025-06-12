@@ -1,4 +1,5 @@
 using BusinessObjects.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.Interface;
 using Shared.Models;
@@ -11,6 +12,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // M?c ??nh yêu c?u ??ng nh?p cho t?t c? các endpoints
     public class BloodInventoriesController : BaseApiController
     {
         private readonly IBloodInventoryService _bloodInventoryService;
@@ -22,6 +24,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodInventories
         [HttpGet]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n xem danh sách kho máu
         [ProducesResponseType(typeof(PagedApiResponse<BloodInventoryDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetBloodInventories([FromQuery] BloodInventoryParameters parameters)
@@ -32,6 +35,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodInventories/5
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n xem chi ti?t kho máu
         [ProducesResponseType(typeof(ApiResponse<BloodInventoryDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -43,6 +47,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodInventories/expired
         [HttpGet("expired")]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n xem danh sách máu h?t h?n
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<BloodInventoryDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetExpiredInventory()
@@ -53,6 +58,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodInventories/available-quantity
         [HttpGet("available-quantity")]
+        [AllowAnonymous] // Cho phép ng??i dùng ch?a ??ng nh?p xem s? l??ng máu kh? d?ng
         [ProducesResponseType(typeof(ApiResponse<int>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -69,6 +75,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodInventories
         [HttpPost]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n thêm m?i kho máu
         [ProducesResponseType(typeof(ApiResponse<BloodInventoryDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -85,6 +92,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/BloodInventories/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n c?p nh?t thông tin kho máu
         [ProducesResponseType(typeof(ApiResponse<BloodInventoryDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
@@ -102,6 +110,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PATCH: api/BloodInventories/5/status
         [HttpPatch("{id}/status")]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n c?p nh?t tr?ng thái kho máu
         [ProducesResponseType(typeof(ApiResponse), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
@@ -119,6 +128,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // DELETE: api/BloodInventories/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")] // Ch? Admin m?i có quy?n xóa kho máu
         [ProducesResponseType(typeof(ApiResponse), 204)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]

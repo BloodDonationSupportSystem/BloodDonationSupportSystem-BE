@@ -13,6 +13,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // M?c ??nh yêu c?u ??ng nh?p cho t?t c? các endpoints
     public class UsersController : BaseApiController
     {
         private readonly IUserService _userService;
@@ -37,7 +38,6 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Users/5
         [HttpGet("{id}")]
-        [Authorize]
         [ProducesResponseType(typeof(ApiResponse<UserDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -94,7 +94,6 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/Users/5
         [HttpPut("{id}")]
-        [Authorize]
         [ProducesResponseType(typeof(ApiResponse<UserDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]

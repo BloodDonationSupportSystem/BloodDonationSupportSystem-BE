@@ -22,6 +22,10 @@ namespace BusinessObjects.Dtos
         public string BloodGroupName { get; set; }
         public DateTimeOffset? CreatedTime { get; set; }
         public DateTimeOffset? LastUpdatedTime { get; set; }
+        public DateTimeOffset? NextAvailableDonationDate { get; set; }
+        public bool IsAvailableForEmergency { get; set; }
+        public string PreferredDonationTime { get; set; }
+        public double? DistanceKm { get; set; } // Added for distance-based search results
     }
 
     public class CreateDonorProfileDto
@@ -59,6 +63,15 @@ namespace BusinessObjects.Dtos
 
         [Required(ErrorMessage = "Blood group ID is required")]
         public Guid BloodGroupId { get; set; }
+
+        public DateTimeOffset? NextAvailableDonationDate { get; set; }
+        
+        [Display(Name = "Available for emergency donation")]
+        public bool IsAvailableForEmergency { get; set; } = false;
+        
+        [StringLength(50, ErrorMessage = "Preferred donation time cannot be longer than 50 characters")]
+        [Display(Name = "Preferred donation time (e.g. Morning, Afternoon, Evening)")]
+        public string PreferredDonationTime { get; set; }
     }
 
     public class UpdateDonorProfileDto
@@ -93,6 +106,15 @@ namespace BusinessObjects.Dtos
 
         [Required(ErrorMessage = "Blood group ID is required")]
         public Guid BloodGroupId { get; set; }
+
+        public DateTimeOffset? NextAvailableDonationDate { get; set; }
+        
+        [Display(Name = "Available for emergency donation")]
+        public bool IsAvailableForEmergency { get; set; }
+        
+        [StringLength(50, ErrorMessage = "Preferred donation time cannot be longer than 50 characters")]
+        [Display(Name = "Preferred donation time (e.g. Morning, Afternoon, Evening)")]
+        public string PreferredDonationTime { get; set; }
     }
 
     public class DonorProfileParameters : PaginationParameters
@@ -100,5 +122,49 @@ namespace BusinessObjects.Dtos
         public string BloodGroup { get; set; }
         public string HealthStatus { get; set; }
         public int? MinimumDonations { get; set; }
+        public bool? IsAvailableNow { get; set; }
+        public bool? IsAvailableForEmergency { get; set; }
+        public DateTimeOffset? AvailableAfter { get; set; }
+        public DateTimeOffset? AvailableBefore { get; set; }
+        public string PreferredDonationTime { get; set; }
+        
+        // Location-based search parameters
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
+        public double? RadiusKm { get; set; }
+    }
+
+    public class UpdateDonationAvailabilityDto
+    {
+        [Required]
+        public Guid DonorProfileId { get; set; }
+        
+        public DateTimeOffset? NextAvailableDonationDate { get; set; }
+        
+        public bool IsAvailableForEmergency { get; set; }
+        
+        [StringLength(50, ErrorMessage = "Preferred donation time cannot be longer than 50 characters")]
+        public string PreferredDonationTime { get; set; }
+    }
+
+    public class NearbyDonorSearchDto
+    {
+        [Required(ErrorMessage = "Latitude is required")]
+        [RegularExpression(@"^-?([1-8]?[1-9]|[1-9]0)\.{1}\d{1,6}$", ErrorMessage = "Latitude must be in decimal format (e.g. 41.123456)")]
+        public double Latitude { get; set; }
+        
+        [Required(ErrorMessage = "Longitude is required")]
+        [RegularExpression(@"^-?([1]?[1-7][1-9]|[1]?[1-8][0]|[1-9]?[0-9])\.{1}\d{1,6}$", ErrorMessage = "Longitude must be in decimal format (e.g. -71.123456)")]
+        public double Longitude { get; set; }
+        
+        [Required(ErrorMessage = "Radius is required")]
+        [Range(0.1, 500, ErrorMessage = "Radius must be between 0.1 and 500 kilometers")]
+        public double RadiusKm { get; set; } = 10.0;
+        
+        public Guid? BloodGroupId { get; set; }
+        
+        public bool? IsAvailableNow { get; set; }
+        
+        public bool? IsAvailableForEmergency { get; set; }
     }
 }

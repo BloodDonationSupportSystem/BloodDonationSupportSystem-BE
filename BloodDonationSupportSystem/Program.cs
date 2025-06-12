@@ -1,6 +1,9 @@
+using AutoMapper;
 using BusinessObjects.Data;
 using BusinessObjects.Models;
 using BloodDonationSupportSystem.Middleware;
+using BloodDonationSupportSystem.BackgroundServices;
+using BloodDonationSupportSystem.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -19,6 +22,10 @@ builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfi
 
 // Configure Email Settings - using fully qualified name to avoid ambiguity
 builder.Services.Configure<Services.Implementation.EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+// Configure Donation Reminder Settings
+builder.Services.Configure<BloodDonationSupportSystem.Config.DonationReminderSettings>(
+    builder.Configuration.GetSection("DonationReminderSettings"));
 
 // Add JWT authentication
 builder.Services.AddAuthentication(options =>
@@ -54,6 +61,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 errorNumbersToAdd: null);
         }));
 
+// Configure AutoMapper
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
 // Register repositories and services
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -74,6 +84,12 @@ builder.Services.AddScoped<IBloodGroupService, BloodGroupService>();
 // ComponentType
 builder.Services.AddScoped<IComponentTypeRepository, ComponentTypeRepository>();
 builder.Services.AddScoped<IComponentTypeService, ComponentTypeService>();
+
+// Blood Compatibility Service
+builder.Services.AddScoped<IBloodCompatibilityService, BloodCompatibilityService>();
+
+// Document Seed Service
+builder.Services.AddScoped<IDocumentSeedService, DocumentSeedService>();
 
 // Role
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
@@ -115,12 +131,24 @@ builder.Services.AddScoped<IDonorProfileService, DonorProfileService>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-// RequestMatch
-builder.Services.AddScoped<IRequestMatchRepository, RequestMatchRepository>();
-builder.Services.AddScoped<IRequestMatchService, RequestMatchService>();
-
 // RefreshToken
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
+// BloodDonationWorkflow
+builder.Services.AddScoped<IBloodDonationWorkflowRepository, BloodDonationWorkflowRepository>();
+builder.Services.AddScoped<IBloodDonationWorkflowService, BloodDonationWorkflowService>();
+
+// Donation Reminder Service
+builder.Services.AddScoped<IDonationReminderService, DonationReminderService>();
+builder.Services.AddScoped<IDonorReminderSettingsRepository, DonorReminderSettingsRepository>();
+
+// Analytics, Dashboard and Report Services
+builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+
+// Register background service for donation reminders
+builder.Services.AddHostedService<DonationReminderBackgroundService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

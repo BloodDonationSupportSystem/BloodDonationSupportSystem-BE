@@ -20,8 +20,9 @@ namespace BusinessObjects.Data
         public DbSet<EmergencyRequest> EmergencyRequests { get; set; }
         public DbSet<Location> Locations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
-        public DbSet<RequestMatch> RequestMatches { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<BloodDonationWorkflow> BloodDonationWorkflows { get; set; }
+        public DbSet<DonorReminderSettings> DonorReminderSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -157,24 +158,37 @@ namespace BusinessObjects.Data
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Fix RequestMatch relationships - This was causing shadow property warnings
-            modelBuilder.Entity<RequestMatch>()
-                .HasOne(rm => rm.BloodRequest)
+            // BloodDonationWorkflow relationships
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasOne(w => w.BloodGroup)
                 .WithMany()
-                .HasForeignKey(rm => rm.RequestId)  // Use the correct FK property name
+                .HasForeignKey(w => w.BloodGroupId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<RequestMatch>()
-                .HasOne(rm => rm.EmergencyRequest)
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasOne(w => w.ComponentType)
                 .WithMany()
-                .HasForeignKey(rm => rm.EmergencyRequestId)
+                .HasForeignKey(w => w.ComponentTypeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<RequestMatch>()
-                .HasOne(rm => rm.DonationEvent)
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasOne(w => w.Donor)
                 .WithMany()
-                .HasForeignKey(rm => rm.DonationEventId)
+                .HasForeignKey(w => w.DonorId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasOne(w => w.Inventory)
+                .WithMany()
+                .HasForeignKey(w => w.InventoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // DonorReminderSettings relationships
+            modelBuilder.Entity<DonorReminderSettings>()
+                .HasOne(drs => drs.DonorProfile)
+                .WithOne()
+                .HasForeignKey<DonorReminderSettings>(drs => drs.DonorProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Set up appropriate indices for frequently queried fields
             modelBuilder.Entity<BloodInventory>()
@@ -185,11 +199,11 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.RoleId);
-                
+
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.UserName)
                 .IsUnique();
-                
+
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
@@ -198,8 +212,26 @@ namespace BusinessObjects.Data
                 .HasIndex(rt => rt.Token)
                 .IsUnique();
 
-            // Removed indices for EmailVerificationToken and PasswordResetToken
-            // Since we're using in-memory TokenStorage instead of database columns
+            // Add indices for BloodDonationWorkflow
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasIndex(w => w.RequestId);
+
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasIndex(w => new { w.Status, w.IsActive });
+
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasIndex(w => w.DonorId);
+
+            modelBuilder.Entity<BloodDonationWorkflow>()
+                .HasIndex(w => new { w.BloodGroupId, w.ComponentTypeId });
+
+            // Add indices for DonorReminderSettings
+            modelBuilder.Entity<DonorReminderSettings>()
+                .HasIndex(drs => drs.DonorProfileId)
+                .IsUnique();
+
+            modelBuilder.Entity<DonorReminderSettings>()
+                .HasIndex(drs => new { drs.EnableReminders, drs.LastReminderSentTime });
 
             // Configure constraints and properties
             modelBuilder.Entity<BloodGroup>()

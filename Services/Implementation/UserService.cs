@@ -121,8 +121,8 @@ namespace Services.Implementation
                 await _unitOfWork.Users.AddAsync(user);
                 await _unitOfWork.CompleteAsync();
 
-                // Automatically mark the email as verified
-                TokenStorage.SetEmailVerified(user.Id);
+                // Automatically consider email as verified
+                // Email verification not needed as we automatically trust user emails
 
                 // Reload to get the role
                 user = await _unitOfWork.Users.GetByIdAsync(user.Id);
@@ -372,8 +372,8 @@ namespace Services.Implementation
                 await _unitOfWork.Users.AddAsync(user);
                 await _unitOfWork.CompleteAsync();
 
-                // Automatically mark the email as verified
-                TokenStorage.SetEmailVerified(user.Id);
+                // Automatically consider email as verified
+                // Email verification not needed as we automatically trust user emails
 
                 // Reload to get the role
                 user = await _unitOfWork.Users.GetByIdAsync(user.Id);

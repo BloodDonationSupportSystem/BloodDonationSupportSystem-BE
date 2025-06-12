@@ -1,4 +1,5 @@
 using BusinessObjects.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.Interface;
 using Shared.Models;
@@ -10,6 +11,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // M?c ??nh yêu c?u ??ng nh?p cho t?t c? các endpoints
     public class LocationsController : BaseApiController
     {
         private readonly ILocationService _locationService;
@@ -21,6 +23,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Locations
         [HttpGet]
+        [AllowAnonymous] // Cho phép ng??i dùng ch?a ??ng nh?p xem thông tin các ??a ?i?m
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<LocationDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetLocations()
@@ -31,6 +34,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Locations/5
         [HttpGet("{id}")]
+        [AllowAnonymous] // Cho phép ng??i dùng ch?a ??ng nh?p xem thông tin chi ti?t ??a ?i?m
         [ProducesResponseType(typeof(ApiResponse<LocationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -42,6 +46,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/Locations
         [HttpPost]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n t?o ??a ?i?m m?i
         [ProducesResponseType(typeof(ApiResponse<LocationDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 409)]
@@ -59,6 +64,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/Locations/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n c?p nh?t thông tin ??a ?i?m
         [ProducesResponseType(typeof(ApiResponse<LocationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
@@ -77,6 +83,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // DELETE: api/Locations/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")] // Ch? Admin m?i có quy?n xóa ??a ?i?m
         [ProducesResponseType(typeof(ApiResponse), 204)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]

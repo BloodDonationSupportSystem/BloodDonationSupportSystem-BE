@@ -19,6 +19,9 @@ namespace Services.Implementation
     {
         private readonly JwtConfig _jwtConfig;
         private readonly IUnitOfWork _unitOfWork;
+        
+        // In-memory storage for refresh tokens
+        private readonly Dictionary<string, RefreshTokenInfo> _refreshTokens = new();
 
         public JwtService(IOptions<JwtConfig> jwtConfig, IUnitOfWork unitOfWork)
         {
@@ -97,8 +100,8 @@ namespace Services.Implementation
             var refreshToken = GenerateRefreshToken();
             var refreshTokenExpiry = DateTimeOffset.UtcNow.AddDays(_jwtConfig.RefreshTokenExpirationDays);
             
-            // Store refresh token in memory instead of database
-            TokenStorage.StoreRefreshToken(refreshToken, user.Id, refreshTokenExpiry);
+            // Store refresh token in memory
+            StoreRefreshToken(refreshToken, user.Id, refreshTokenExpiry);
             
             // Create token response with safe values
             return new TokenResponseDto
@@ -140,7 +143,7 @@ namespace Services.Implementation
             var userId = Guid.Parse(subClaim.Value);
             
             // Validate refresh token from in-memory storage
-            var storedRefreshToken = TokenStorage.GetRefreshToken(refreshToken);
+            var storedRefreshToken = GetRefreshToken(refreshToken);
             if (storedRefreshToken == null || 
                 storedRefreshToken.UserId != userId || 
                 storedRefreshToken.IsUsed || 
@@ -151,7 +154,7 @@ namespace Services.Implementation
             }
 
             // Mark current refresh token as used
-            TokenStorage.MarkRefreshTokenAsUsed(refreshToken);
+            MarkRefreshTokenAsUsed(refreshToken);
 
             // Get user with role included to ensure no null reference issues
             var user = await _unitOfWork.Users.GetByIdAsync(userId);
@@ -176,13 +179,13 @@ namespace Services.Implementation
 
         public async Task RevokeRefreshTokenAsync(string refreshToken)
         {
-            var storedRefreshToken = TokenStorage.GetRefreshToken(refreshToken);
+            var storedRefreshToken = GetRefreshToken(refreshToken);
             if (storedRefreshToken == null)
             {
                 throw new SecurityTokenException("Invalid refresh token");
             }
 
-            TokenStorage.RevokeRefreshToken(refreshToken);
+            RevokeRefreshToken(refreshToken);
             await Task.CompletedTask; // To keep method signature as async
         }
 
@@ -226,5 +229,54 @@ namespace Services.Implementation
                 return null;
             }
         }
+        
+        #region Refresh Token Management
+        
+        // Store refresh token in memory
+        private void StoreRefreshToken(string token, Guid userId, DateTimeOffset expiryDate)
+        {
+            _refreshTokens[token] = new RefreshTokenInfo
+            {
+                UserId = userId,
+                ExpiryDate = expiryDate,
+                IsUsed = false,
+                IsRevoked = false
+            };
+        }
+        
+        // Get refresh token info from memory
+        private RefreshTokenInfo GetRefreshToken(string token)
+        {
+            return _refreshTokens.TryGetValue(token, out var tokenInfo) ? tokenInfo : null;
+        }
+        
+        // Mark refresh token as used
+        private void MarkRefreshTokenAsUsed(string token)
+        {
+            if (_refreshTokens.TryGetValue(token, out var tokenInfo))
+            {
+                tokenInfo.IsUsed = true;
+            }
+        }
+        
+        // Revoke refresh token
+        private void RevokeRefreshToken(string token)
+        {
+            if (_refreshTokens.TryGetValue(token, out var tokenInfo))
+            {
+                tokenInfo.IsRevoked = true;
+            }
+        }
+        
+        // Helper class for refresh token info
+        private class RefreshTokenInfo
+        {
+            public Guid UserId { get; set; }
+            public DateTimeOffset ExpiryDate { get; set; }
+            public bool IsUsed { get; set; }
+            public bool IsRevoked { get; set; }
+        }
+        
+        #endregion
     }
 }

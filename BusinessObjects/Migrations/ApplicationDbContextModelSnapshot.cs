@@ -64,6 +64,101 @@ namespace BusinessObjects.Migrations
                     b.ToTable("BlogPosts");
                 });
 
+            modelBuilder.Entity("BusinessObjects.Models.BloodDonationWorkflow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AppointmentConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("AppointmentDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AppointmentLocation")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<Guid>("BloodGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CompletedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ComponentTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("DeletedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("DonationDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DonationLocation")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<Guid?>("DonorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("InventoryId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("LastUpdatedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<double?>("QuantityDonated")
+                        .HasColumnType("float");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("StatusDescription")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComponentTypeId");
+
+                    b.HasIndex("DonorId");
+
+                    b.HasIndex("InventoryId");
+
+                    b.HasIndex("RequestId");
+
+                    b.HasIndex("BloodGroupId", "ComponentTypeId");
+
+                    b.HasIndex("Status", "IsActive");
+
+                    b.ToTable("BloodDonationWorkflows");
+                });
+
             modelBuilder.Entity("BusinessObjects.Models.BloodGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -313,6 +408,9 @@ namespace BusinessObjects.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsAvailableForEmergency")
+                        .HasColumnType("bit");
+
                     b.Property<DateTimeOffset>("LastDonationDate")
                         .HasColumnType("datetimeoffset");
 
@@ -333,6 +431,13 @@ namespace BusinessObjects.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTimeOffset?>("NextAvailableDonationDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PreferredDonationTime")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("TotalDonations")
                         .HasColumnType("int");
 
@@ -349,11 +454,55 @@ namespace BusinessObjects.Migrations
                     b.ToTable("DonorProfiles");
                 });
 
+            modelBuilder.Entity("BusinessObjects.Models.DonorReminderSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DaysBeforeEligible")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("DonorProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("EmailNotifications")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableReminders")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("InAppNotifications")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("LastReminderSentTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastUpdatedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DonorProfileId")
+                        .IsUnique();
+
+                    b.HasIndex("EnableReminders", "LastReminderSentTime");
+
+                    b.ToTable("DonorReminderSettings");
+                });
+
             modelBuilder.Entity("BusinessObjects.Models.EmergencyRequest", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("BloodGroupId")
                         .HasColumnType("uniqueidentifier");
@@ -374,11 +523,33 @@ namespace BusinessObjects.Migrations
                     b.Property<DateTimeOffset?>("DeletedTime")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("HospitalName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LastUpdatedBy")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset?>("LastUpdatedTime")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Latitude")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Longitude")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MedicalNotes")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PatientName")
                         .IsRequired()
@@ -403,6 +574,8 @@ namespace BusinessObjects.Migrations
                     b.HasIndex("BloodGroupId");
 
                     b.HasIndex("ComponentTypeId");
+
+                    b.HasIndex("LocationId");
 
                     b.ToTable("EmergencyRequests");
                 });
@@ -465,6 +638,14 @@ namespace BusinessObjects.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ReferenceId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -479,51 +660,36 @@ namespace BusinessObjects.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("BusinessObjects.Models.RequestMatch", b =>
+            modelBuilder.Entity("BusinessObjects.Models.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("CreatedTime")
+                    b.Property<DateTimeOffset>("ExpiryDate")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<DateTimeOffset?>("DeletedTime")
-                        .HasColumnType("datetimeoffset");
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("bit");
 
-                    b.Property<Guid>("DonationEventId")
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("EmergencyRequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("LastUpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("LastUpdatedTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset>("MatchDate")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("RequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("UnitsAssigned")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DonationEventId");
+                    b.HasIndex("Token")
+                        .IsUnique();
 
-                    b.HasIndex("EmergencyRequestId");
+                    b.HasIndex("UserId");
 
-                    b.HasIndex("RequestId");
-
-                    b.ToTable("RequestMatches");
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("BusinessObjects.Models.Role", b =>
@@ -556,7 +722,7 @@ namespace BusinessObjects.Migrations
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
@@ -582,11 +748,17 @@ namespace BusinessObjects.Migrations
 
                     b.Property<string>("UserName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Email")
+                        .IsUnique();
+
                     b.HasIndex("RoleId");
+
+                    b.HasIndex("UserName")
+                        .IsUnique();
 
                     b.ToTable("Users");
                 });
@@ -600,6 +772,39 @@ namespace BusinessObjects.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessObjects.Models.BloodDonationWorkflow", b =>
+                {
+                    b.HasOne("BusinessObjects.Models.BloodGroup", "BloodGroup")
+                        .WithMany()
+                        .HasForeignKey("BloodGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BusinessObjects.Models.ComponentType", "ComponentType")
+                        .WithMany()
+                        .HasForeignKey("ComponentTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BusinessObjects.Models.DonorProfile", "Donor")
+                        .WithMany()
+                        .HasForeignKey("DonorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BusinessObjects.Models.BloodInventory", "Inventory")
+                        .WithMany()
+                        .HasForeignKey("InventoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("BloodGroup");
+
+                    b.Navigation("ComponentType");
+
+                    b.Navigation("Donor");
+
+                    b.Navigation("Inventory");
                 });
 
             modelBuilder.Entity("BusinessObjects.Models.BloodInventory", b =>
@@ -729,6 +934,17 @@ namespace BusinessObjects.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BusinessObjects.Models.DonorReminderSettings", b =>
+                {
+                    b.HasOne("BusinessObjects.Models.DonorProfile", "DonorProfile")
+                        .WithOne()
+                        .HasForeignKey("BusinessObjects.Models.DonorReminderSettings", "DonorProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DonorProfile");
+                });
+
             modelBuilder.Entity("BusinessObjects.Models.EmergencyRequest", b =>
                 {
                     b.HasOne("BusinessObjects.Models.BloodGroup", "BloodGroup")
@@ -743,9 +959,15 @@ namespace BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BusinessObjects.Models.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId");
+
                     b.Navigation("BloodGroup");
 
                     b.Navigation("ComponentType");
+
+                    b.Navigation("Location");
                 });
 
             modelBuilder.Entity("BusinessObjects.Models.Notification", b =>
@@ -759,31 +981,15 @@ namespace BusinessObjects.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("BusinessObjects.Models.RequestMatch", b =>
+            modelBuilder.Entity("BusinessObjects.Models.RefreshToken", b =>
                 {
-                    b.HasOne("BusinessObjects.Models.DonationEvent", "DonationEvent")
-                        .WithMany()
-                        .HasForeignKey("DonationEventId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("BusinessObjects.Models.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BusinessObjects.Models.EmergencyRequest", "EmergencyRequest")
-                        .WithMany()
-                        .HasForeignKey("EmergencyRequestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BusinessObjects.Models.BloodRequest", "BloodRequest")
-                        .WithMany()
-                        .HasForeignKey("RequestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("BloodRequest");
-
-                    b.Navigation("DonationEvent");
-
-                    b.Navigation("EmergencyRequest");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BusinessObjects.Models.User", b =>
@@ -802,6 +1008,11 @@ namespace BusinessObjects.Migrations
                     b.Navigation("BloodInventories");
 
                     b.Navigation("DonationEvents");
+                });
+
+            modelBuilder.Entity("BusinessObjects.Models.User", b =>
+                {
+                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }

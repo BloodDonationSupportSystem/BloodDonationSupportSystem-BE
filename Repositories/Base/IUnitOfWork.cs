@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Repositories.Interface;
+using System.Collections.Generic;
 
 namespace Repositories.Base
 {
@@ -19,8 +20,10 @@ namespace Repositories.Base
         IDocumentRepository Documents { get; }
         IDonorProfileRepository DonorProfiles { get; }
         INotificationRepository Notifications { get; }
-        IRequestMatchRepository RequestMatches { get; }
         IRefreshTokenRepository RefreshTokens { get; }
+        IBloodDonationWorkflowRepository BloodDonationWorkflows { get; }
+        IDonorReminderSettingsRepository DonorReminderSettings { get; }
+        IAnalyticsRepository Analytics { get; }
         
         Task<int> CompleteAsync();
     }

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Repositories.Base;
 using Repositories.Interface;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Repositories.Implementation
@@ -33,6 +35,14 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Id == id);
+        }
+        
+        public async Task<IEnumerable<User>> GetUsersByRoleIdAsync(Guid roleId)
+        {
+            return await _dbSet
+                .Include(u => u.Role)
+                .Where(u => u.RoleId == roleId)
+                .ToListAsync();
         }
     }
 }
