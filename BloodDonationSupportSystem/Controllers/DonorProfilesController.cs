@@ -1,4 +1,4 @@
-using BusinessObjects.Dtos;
+﻿using BusinessObjects.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.Interface;
@@ -7,12 +7,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Net;
+using System.Security.Claims;
 
 namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // M?c ??nh y�u c?u ??ng nh?p cho t?t c? c�c endpoints
+    [Authorize] // Mặc định yêu cầu đăng nhập cho tất cả các endpoints
     public class DonorProfilesController : BaseApiController
     {
         private readonly IDonorProfileService _donorProfileService;
@@ -22,9 +23,46 @@ namespace BloodDonationSupportSystem.Controllers
             _donorProfileService = donorProfileService;
         }
 
+        // GET: api/DonorProfiles/current/exists
+        [HttpGet("current/exists")]
+        [Authorize(Roles = "Member")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> HasDonorProfile()
+        {
+            try
+            {
+                // Get the current user's ID from claims
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                {
+                    return HandleResponse(new ApiResponse<bool>(
+                        HttpStatusCode.Unauthorized,
+                        "User is not properly authenticated."));
+                }
+
+                var userId = Guid.Parse(userIdClaim.Value);
+
+                // Check if the user has a donor profile
+                var response = await _donorProfileService.GetDonorProfileByUserIdAsync(userId);
+                
+                // Return true if the profile exists, false if not found
+                bool hasProfile = response.Success && response.Data != null;
+                
+                return HandleResponse(new ApiResponse<bool>(hasProfile));
+            }
+            catch (Exception ex)
+            {
+                return HandleResponse(new ApiResponse<bool>(
+                    HttpStatusCode.InternalServerError,
+                    $"Error checking donor profile existence: {ex.Message}"));
+            }
+        }
+
         // GET: api/DonorProfiles
         [HttpGet]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin v� Staff c� th? xem t?t c? h? s? ng??i hi?n m�u (ph�n trang)
+        [Authorize(Roles = "Admin,Staff")] // Chỉ Admin và Staff có thể xem tất cả hồ sơ người hiến máu (phân trang)
         [ProducesResponseType(typeof(PagedApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetDonorProfiles([FromQuery] DonorProfileParameters parameters)
@@ -35,7 +73,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/all
         [HttpGet("all")]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin v� Staff c� th? xem t?t c? h? s? ng??i hi?n m�u
+        [Authorize(Roles = "Admin,Staff")] // Chỉ Admin và Staff có thể xem tất cả hồ sơ người hiến máu
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonorProfileDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetAllDonorProfiles()
@@ -46,7 +84,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/5
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i d�ng ?� ??ng nh?p ??u c� th? xem th�ng tin chi ti?t m?t h? s?
+        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể xem thông tin chi tiết một hồ sơ
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -58,7 +96,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/user/5
         [HttpGet("user/{userId}")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i d�ng ?� ??ng nh?p ??u c� th? xem h? s? theo userId
+        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể xem hồ sơ theo userId
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
@@ -71,7 +109,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/bloodgroup/5
         [HttpGet("bloodgroup/{bloodGroupId}")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i d�ng ?� ??ng nh?p ??u c� th? t�m ki?m theo nh�m m�u
+        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể tìm kiếm theo nhóm máu
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonorProfileDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -83,7 +121,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/available
         [HttpGet("available")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i d�ng ?� ??ng nh?p ??u c� th? t�m ki?m ng??i hi?n m�u kh? d?ng
+        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể tìm kiếm người hiến máu khả dụng
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonorProfileDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetAvailableDonors([FromQuery] DateTimeOffset? date = null, [FromQuery] bool? forEmergency = null)
@@ -94,7 +132,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/nearby
         [HttpGet("nearby")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i d�ng ?� ??ng nh?p ??u c� th? t�m ki?m ng??i hi?n m�u g?n ?�
+        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể tìm kiếm người hiến máu gần đó
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonorProfileDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -117,7 +155,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/nearby/available
         [HttpGet("nearby/available")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i d�ng ?� ??ng nh?p ??u c� th? t�m ki?m ng??i hi?n m�u kh? d?ng g?n ?�
+        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể tìm kiếm người hiến máu khả dụng gần đó
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonorProfileDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -134,7 +172,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/nearby/paged
         [HttpGet("nearby/paged")]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin v� Staff c� th? xem t?t c? h? s? ng??i hi?n m�u g?n ?� (ph�n trang)
+        [Authorize(Roles = "Admin,Staff")] // Chỉ Admin và Staff có thể xem tất cả hồ sơ người hiến máu gần đó (phân trang)
         [ProducesResponseType(typeof(PagedApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -158,7 +196,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/DonorProfiles
         [HttpPost]
-        [Authorize(Roles = "Member")] // Ch? Member m?i ???c t?o h? s? hi?n m�u (cho ch�nh h?)
+        [Authorize(Roles = "Member")] // Chỉ Member mới được tạo hồ sơ hiến máu (cho chính họ)
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -175,7 +213,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/DonorProfiles/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "Member,Staff,Admin")] // Ng??i d�ng c� th? c?p nh?t h? s? c?a h?, Staff v� Admin c� th? c?p nh?t b?t k? h? s? n�o
+        [Authorize(Roles = "Member,Staff,Admin")] // Người dùng có thể cập nhật hồ sơ của họ, Staff và Admin có thể cập nhật bất kỳ hồ sơ nào
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
@@ -193,7 +231,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/DonorProfiles/availability
         [HttpPut("availability")]
-        [Authorize(Roles = "Member")] // Ch? Member c� th? c?p nh?t th�ng tin s?n s�ng hi?n m�u c?a h?
+        [Authorize(Roles = "Member")] // Chỉ Member có thể cập nhật thông tin sẵn sàng hiến máu của họ
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
@@ -211,7 +249,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // DELETE: api/DonorProfiles/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")] // Ch? Admin m?i c� quy?n x�a h? s?
+        [Authorize(Roles = "Admin")] // Chỉ Admin mới có quyền xóa hồ sơ
         [ProducesResponseType(typeof(ApiResponse), 204)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]

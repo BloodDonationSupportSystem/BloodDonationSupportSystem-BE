@@ -23,7 +23,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodDonationWorkflows
         [HttpGet]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(PagedApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -36,7 +36,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodDonationWorkflows/5
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Staff,Doctor,Donor")]
+        [Authorize(Roles = "Admin,Staff,Donor")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -50,7 +50,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodDonationWorkflows/request/{requestId}
         [HttpGet("request/{requestId}")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonationWorkflowDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -63,7 +63,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodDonationWorkflows/donor/{donorId}
         [HttpGet("donor/{donorId}")]
-        [Authorize(Roles = "Admin,Staff,Doctor,Donor")]
+        [Authorize(Roles = "Admin,Staff,Donor")]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonationWorkflowDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -76,7 +76,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodDonationWorkflows/status/{status}
         [HttpGet("status/{status}")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonationWorkflowDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -89,7 +89,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/BloodDonationWorkflows/pending-appointments
         [HttpGet("pending-appointments")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonationWorkflowDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -102,7 +102,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodDonationWorkflows
         [HttpPost]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -121,7 +121,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/BloodDonationWorkflows/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -141,7 +141,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodDonationWorkflows/status
         [HttpPost("status")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -161,7 +161,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodDonationWorkflows/assign-donor
         [HttpPost("assign-donor")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -201,7 +201,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodDonationWorkflows/complete-donation
         [HttpPost("complete-donation")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -221,7 +221,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodDonationWorkflows/{id}/confirm-appointment
         [HttpPost("{id}/confirm-appointment")]
-        [Authorize(Roles = "Admin,Staff,Doctor,Donor")]
+        [Authorize(Roles = "Admin,Staff,Donor")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -236,7 +236,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/BloodDonationWorkflows/{id}/cancel
         [HttpPost("{id}/cancel")]
-        [Authorize(Roles = "Admin,Staff,Doctor")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationWorkflowDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]

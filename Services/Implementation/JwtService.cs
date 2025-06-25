@@ -65,16 +65,19 @@ namespace Services.Implementation
                 // Continue with the default role name
             }
 
-            // Create token expiration date
-            var tokenExpiration = DateTimeOffset.UtcNow.AddMinutes(_jwtConfig.AccessTokenExpirationMinutes);
+            // S? d?ng DateTime.UtcNow ?? ??m b?o s? d?ng ?úng ??nh d?ng th?i gian UTC
+            var now = DateTime.UtcNow;
+            var expiration = now.AddMinutes(_jwtConfig.AccessTokenExpirationMinutes);
             
             // Create claims for the token - ensure no null values
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
+                // Use ClaimTypes constants for standard claims to ensure compatibility with ASP.NET Core Authorization
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
+                // ??m b?o Role claim dùng ?úng ??nh d?ng mà ASP.NET Core Authorization middleware mong ??i
                 new Claim(ClaimTypes.Role, roleName)
             };
             
@@ -82,11 +85,13 @@ namespace Services.Implementation
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtConfig.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             
-            // Create token descriptor
+            // Create token descriptor - s? d?ng DateTime thay vì DateTimeOffset
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = tokenExpiration.DateTime,
+                NotBefore = now,                  // Th?i gian hi?n t?i
+                IssuedAt = now,                   // Th?i gian hi?n t?i 
+                Expires = expiration,             // Th?i gian hi?n t?i + th?i gian h?t h?n
                 SigningCredentials = creds,
                 Issuer = _jwtConfig.Issuer,
                 Audience = _jwtConfig.Audience
@@ -98,7 +103,7 @@ namespace Services.Implementation
             
             // Generate refresh token
             var refreshToken = GenerateRefreshToken();
-            var refreshTokenExpiry = DateTimeOffset.UtcNow.AddDays(_jwtConfig.RefreshTokenExpirationDays);
+            var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtConfig.RefreshTokenExpirationDays);
             
             // Store refresh token in memory
             StoreRefreshToken(refreshToken, user.Id, refreshTokenExpiry);
@@ -108,7 +113,7 @@ namespace Services.Implementation
             {
                 AccessToken = tokenHandler.WriteToken(token),
                 RefreshToken = refreshToken,
-                Expiration = tokenExpiration,
+                Expiration = new DateTimeOffset(expiration),
                 User = new UserDto
                 {
                     Id = user.Id,
@@ -134,7 +139,7 @@ namespace Services.Implementation
             }
 
             // Replace FindFirstValue with a direct claim lookup using LINQ
-            var subClaim = principal.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub);
+            var subClaim = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
             if (subClaim == null)
             {
                 throw new SecurityTokenException("Invalid access token - missing subject claim");
@@ -148,7 +153,7 @@ namespace Services.Implementation
                 storedRefreshToken.UserId != userId || 
                 storedRefreshToken.IsUsed || 
                 storedRefreshToken.IsRevoked || 
-                storedRefreshToken.ExpiryDate <= DateTimeOffset.UtcNow)
+                storedRefreshToken.ExpiryDate <= DateTime.UtcNow)
             {
                 throw new SecurityTokenException("Invalid refresh token");
             }
@@ -207,7 +212,8 @@ namespace Services.Implementation
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtConfig.Secret)),
                 ValidateLifetime = false, // We're validating an expired token
                 ValidIssuer = _jwtConfig.Issuer,
-                ValidAudience = _jwtConfig.Audience
+                ValidAudience = _jwtConfig.Audience,
+                ClockSkew = TimeSpan.Zero // ??m b?o không có kho?ng th?i gian khoan h?ng
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -233,7 +239,7 @@ namespace Services.Implementation
         #region Refresh Token Management
         
         // Store refresh token in memory
-        private void StoreRefreshToken(string token, Guid userId, DateTimeOffset expiryDate)
+        private void StoreRefreshToken(string token, Guid userId, DateTime expiryDate)
         {
             _refreshTokens[token] = new RefreshTokenInfo
             {
@@ -272,7 +278,7 @@ namespace Services.Implementation
         private class RefreshTokenInfo
         {
             public Guid UserId { get; set; }
-            public DateTimeOffset ExpiryDate { get; set; }
+            public DateTime ExpiryDate { get; set; }
             public bool IsUsed { get; set; }
             public bool IsRevoked { get; set; }
         }
