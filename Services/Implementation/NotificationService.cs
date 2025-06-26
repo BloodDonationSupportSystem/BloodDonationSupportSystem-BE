@@ -280,15 +280,39 @@ namespace Services.Implementation
                     };
                 }
 
+                // Initialize parameters if null
+                parameters ??= new NotificationParameters();
+
+                // Set default sorting to CreatedTime descending if not specified
+                // This ensures notifications are shown newest first by default
+                if (string.IsNullOrEmpty(parameters.SortBy))
+                {
+                    parameters.SortBy = "createdtime";
+                    parameters.SortAscending = false; // Newest first
+                }
+
                 var (notifications, totalCount) = await _unitOfWork.Notifications.GetPagedNotificationsByUserIdAsync(userId, parameters);
                 var notificationDtos = notifications.Select(MapToDto).ToList();
+
+                string filterInfo = "";
+                if (!string.IsNullOrEmpty(parameters.Type) || parameters.IsRead.HasValue)
+                {
+                    var filters = new List<string>();
+                    if (!string.IsNullOrEmpty(parameters.Type))
+                        filters.Add($"type: {parameters.Type}");
+                    if (parameters.IsRead.HasValue)
+                        filters.Add($"read status: {(parameters.IsRead.Value ? "read" : "unread")}");
+                    filterInfo = $" (filtered by {string.Join(", ", filters)})";
+                }
 
                 return new PagedApiResponse<NotificationDto>(
                     notificationDtos,
                     totalCount,
                     parameters.PageNumber,
-                    parameters.PageSize
-                );
+                    parameters.PageSize)
+                {
+                    Message = $"Retrieved {notificationDtos.Count} out of {totalCount} notifications for user{filterInfo}, sorted by {parameters.SortBy} {(parameters.SortAscending ? "ascending" : "descending")}"
+                };
             }
             catch (Exception ex)
             {

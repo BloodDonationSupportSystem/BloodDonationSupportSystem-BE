@@ -75,7 +75,7 @@ namespace BusinessObjects.Dtos
 
     public class DonationEventParameters : PaginationParameters
     {
-        public string Status { get; set; }
+        public string? Status { get; set; }
         public Guid? DonorId { get; set; }
         public Guid? BloodGroupId { get; set; }
         public Guid? ComponentTypeId { get; set; }

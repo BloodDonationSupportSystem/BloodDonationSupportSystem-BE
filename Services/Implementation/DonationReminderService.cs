@@ -40,7 +40,7 @@ namespace Services.Implementation
         {
             try
             {
-                // L?y danh sách ng??i hi?n máu c?n ???c nh?c nh?
+                // Get the list of donors needing reminders
                 var reminderSettings = await _unitOfWork.DonorReminderSettings.GetDonorsNeedingRemindersAsync(daysBeforeEligible);
                 int remindersSent = 0;
 
@@ -56,14 +56,14 @@ namespace Services.Implementation
 
                         if (!donor.NextAvailableDonationDate.HasValue)
                         {
-                            _logger.LogWarning("Ng??i hi?n máu ID: {DonorId} không có ngày hi?n máu ti?p theo", settings.DonorProfileId);
+                            _logger.LogWarning("Donor ID: {DonorId} does not have a next donation date", settings.DonorProfileId);
                             continue;
                         }
 
-                        // T?o thông báo
-                        string reminderMessage = $"Xin chào {user.FirstName}, b?n s? ?? ?i?u ki?n hi?n máu vào ngày {donor.NextAvailableDonationDate?.ToString("dd/MM/yyyy")}. Hãy chu?n b? s?n sàng ?? tham gia hi?n máu và c?u s?ng nhi?u ng??i!";
+                        // Create notification message
+                        string reminderMessage = $"Hello {user.FirstName}, you will be eligible to donate blood on {donor.NextAvailableDonationDate?.ToString("dd/MM/yyyy")}. Please be ready to donate and save lives!";
 
-                        // G?i thông báo trong ?ng d?ng
+                        // Send in-app notification
                         if (settings.InAppNotifications)
                         {
                             await _notificationService.CreateNotificationAsync(new CreateNotificationDto
@@ -74,36 +74,36 @@ namespace Services.Implementation
                             });
                         }
 
-                        // G?i email thông báo
+                        // Send email notification
                         if (settings.EmailNotifications && !string.IsNullOrEmpty(user.Email))
                         {
                             await _emailService.SendEmailAsync(
                                 user.Email,
-                                "Nh?c nh? v? th?i gian hi?n máu",
+                                "Blood Donation Reminder",
                                 reminderMessage
                             );
                         }
 
-                        // C?p nh?t th?i gian g?i nh?c nh? g?n nh?t
+                        // Update last reminder sent time
                         await _unitOfWork.DonorReminderSettings.UpdateLastReminderSentTimeAsync(settings.Id);
                         remindersSent++;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "L?i khi g?i nh?c nh? cho ng??i hi?n máu ID: {DonorId}", settings.DonorProfileId);
-                        // Ti?p t?c v?i ng??i hi?n máu ti?p theo
+                        _logger.LogError(ex, "Error sending reminder to donor ID: {DonorId}", settings.DonorProfileId);
+                        // Continue with next donor
                         continue;
                     }
                 }
 
                 await _unitOfWork.CompleteAsync();
 
-                return new ApiResponse<int>(remindersSent, $"?ã g?i {remindersSent} nh?c nh? thành công");
+                return new ApiResponse<int>(remindersSent, $"Successfully sent {remindersSent} reminders");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "L?i khi ki?m tra và g?i nh?c nh? hi?n máu");
-                return new ApiResponse<int>(HttpStatusCode.InternalServerError, "L?i khi g?i nh?c nh? hi?n máu");
+                _logger.LogError(ex, "Error checking and sending donation reminders");
+                return new ApiResponse<int>(HttpStatusCode.InternalServerError, "Error sending donation reminders");
             }
         }
 
@@ -111,30 +111,30 @@ namespace Services.Implementation
         {
             try
             {
-                // Ki?m tra ng??i hi?n máu
+                // Check donor
                 var donor = await _unitOfWork.DonorProfiles.GetByIdWithDetailsAsync(donorId);
                 if (donor == null || donor.DeletedTime != null)
                 {
                     return new ApiResponse<NotificationDto>(
                         HttpStatusCode.NotFound,
-                        "Không tìm th?y h? s? ng??i hi?n máu");
+                        "Donor profile not found");
                 }
 
                 if (donor.User == null)
                 {
                     return new ApiResponse<NotificationDto>(
                         HttpStatusCode.BadRequest,
-                        "Ng??i hi?n máu không có thông tin ng??i dùng");
+                        "Donor does not have user information");
                 }
 
                 if (!donor.NextAvailableDonationDate.HasValue)
                 {
                     return new ApiResponse<NotificationDto>(
                         HttpStatusCode.BadRequest,
-                        "Ng??i hi?n máu ch?a có thông tin ngày hi?n máu ti?p theo");
+                        "Donor does not have next donation date information");
                 }
 
-                // L?y cài ??t nh?c nh?, n?u ch?a có thì t?o m?i
+                // Get reminder settings, create if not exists
                 var reminderSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(donorId);
                 if (reminderSettings == null)
                 {
@@ -150,30 +150,30 @@ namespace Services.Implementation
                     await _unitOfWork.CompleteAsync();
                 }
 
-                // Ki?m tra xem ng??i hi?n máu có b?t nh?c nh? không
+                // Check if reminders are enabled
                 if (!reminderSettings.EnableReminders)
                 {
                     return new ApiResponse<NotificationDto>(
                         HttpStatusCode.BadRequest,
-                        "Ng??i hi?n máu ?ã t?t tính n?ng nh?c nh?");
+                        "Donor has disabled reminders");
                 }
 
-                // Ki?m tra th?i gian g?i nh?c nh? g?n nh?t ?? tránh spam
+                // Check last reminder sent time to avoid spam
                 if (reminderSettings.LastReminderSentTime.HasValue)
                 {
                     var daysSinceLastReminder = (DateTimeOffset.UtcNow - reminderSettings.LastReminderSentTime.Value).TotalDays;
-                    if (daysSinceLastReminder < 1) // Ch? cho phép g?i 1 l?n/ngày
+                    if (daysSinceLastReminder < 1) // Only allow once per day
                     {
                         return new ApiResponse<NotificationDto>(
                             HttpStatusCode.BadRequest,
-                            $"?ã g?i nh?c nh? cho ng??i hi?n máu này trong vòng 24 gi? qua. Vui lòng th? l?i sau.");
+                            $"Reminder has been sent to this donor within the last 24 hours. Please try again later.");
                     }
                 }
 
-                // T?o thông báo
-                string reminderMessage = $"Xin chào {donor.User.FirstName}, b?n s? ?? ?i?u ki?n hi?n máu vào ngày {donor.NextAvailableDonationDate?.ToString("dd/MM/yyyy")}. Hãy chu?n b? s?n sàng ?? tham gia hi?n máu và c?u s?ng nhi?u ng??i!";
+                // Create notification message
+                string reminderMessage = $"Hello {donor.User.FirstName}, you will be eligible to donate blood on {donor.NextAvailableDonationDate?.ToString("dd/MM/yyyy")}. Please be ready to donate and save lives!";
 
-                // G?i thông báo trong ?ng d?ng n?u cài ??t cho phép
+                // Send in-app notification if settings allow
                 ApiResponse<NotificationDto> notification;
 
                 if (reminderSettings.InAppNotifications)
@@ -193,26 +193,26 @@ namespace Services.Implementation
                         Type = "DonationReminder",
                         Message = reminderMessage,
                         CreatedTime = DateTimeOffset.UtcNow
-                    }, "Thông báo ?ã ???c t?o nh?ng không g?i trong ?ng d?ng do cài ??t ng??i dùng");
+                    }, "Notification created but not sent in-app due to user settings");
                 }
 
-                // G?i email thông báo n?u có email và cài ??t cho phép
+                // Send email notification if email exists and settings allow
                 if (reminderSettings.EmailNotifications && !string.IsNullOrEmpty(donor.User.Email))
                 {
                     await _emailService.SendEmailAsync(
                         donor.User.Email,
-                        "Nh?c nh? v? th?i gian hi?n máu",
+                        "Blood Donation Reminder",
                         reminderMessage
                     );
 
                     if (!reminderSettings.InAppNotifications)
                     {
-                        _logger.LogInformation("?ã g?i email nh?c nh? cho ng??i hi?n máu ID: {DonorId} ({Email})",
+                        _logger.LogInformation("Email reminder sent to donor ID: {DonorId} ({Email})",
                             donorId, donor.User.Email);
                     }
                 }
 
-                // C?p nh?t th?i gian g?i nh?c nh? g?n nh?t
+                // Update last reminder sent time
                 await _unitOfWork.DonorReminderSettings.UpdateLastReminderSentTimeAsync(reminderSettings.Id);
                 await _unitOfWork.CompleteAsync();
 
@@ -220,8 +220,75 @@ namespace Services.Implementation
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "L?i khi g?i nh?c nh? cho ng??i hi?n máu ID: {DonorId}", donorId);
-                return new ApiResponse<NotificationDto>(HttpStatusCode.InternalServerError, "L?i khi g?i nh?c nh? hi?n máu");
+                _logger.LogError(ex, "Error sending reminder to donor ID: {DonorId}", donorId);
+                return new ApiResponse<NotificationDto>(HttpStatusCode.InternalServerError, "Error sending donation reminder");
+            }
+        }
+
+        public async Task<ApiResponse<DonorReminderSettingsDto>> CreateReminderSettingsAsync(CreateDonorReminderSettingsDto reminderSettingsDto)
+        {
+            try
+            {
+                // Check donor
+                var donor = await _unitOfWork.DonorProfiles.GetByIdAsync(reminderSettingsDto.DonorProfileId);
+                if (donor == null || donor.DeletedTime != null)
+                {
+                    return new ApiResponse<DonorReminderSettingsDto>(
+                        HttpStatusCode.NotFound,
+                        "Donor profile not found");
+                }
+
+                // Check if reminder settings already exist for this donor
+                var existingSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(reminderSettingsDto.DonorProfileId);
+                if (existingSettings != null)
+                {
+                    return new ApiResponse<DonorReminderSettingsDto>(
+                        HttpStatusCode.BadRequest,
+                        "Reminder settings for this donor already exist. Please use the update API instead.");
+                }
+
+                // Create new reminder settings
+                var reminderSettings = new DonorReminderSettings
+                {
+                    DonorProfileId = reminderSettingsDto.DonorProfileId,
+                    EnableReminders = reminderSettingsDto.EnableReminders,
+                    DaysBeforeEligible = reminderSettingsDto.DaysBeforeEligible,
+                    EmailNotifications = reminderSettingsDto.EmailNotifications,
+                    InAppNotifications = reminderSettingsDto.InAppNotifications,
+                    CreatedTime = DateTimeOffset.UtcNow
+                };
+
+                await _unitOfWork.DonorReminderSettings.AddAsync(reminderSettings);
+                await _unitOfWork.CompleteAsync();
+
+                // Get the created settings with full details
+                var createdSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(reminderSettingsDto.DonorProfileId);
+
+                var settingsDto = new DonorReminderSettingsDto
+                {
+                    Id = createdSettings.Id,
+                    DonorProfileId = createdSettings.DonorProfileId,
+                    DonorName = createdSettings.DonorProfile?.User != null ?
+                        $"{createdSettings.DonorProfile.User.FirstName} {createdSettings.DonorProfile.User.LastName}" : "",
+                    EnableReminders = createdSettings.EnableReminders,
+                    DaysBeforeEligible = createdSettings.DaysBeforeEligible,
+                    EmailNotifications = createdSettings.EmailNotifications,
+                    InAppNotifications = createdSettings.InAppNotifications,
+                    CreatedTime = createdSettings.CreatedTime,
+                    LastUpdatedTime = createdSettings.LastUpdatedTime
+                };
+
+                return new ApiResponse<DonorReminderSettingsDto>(
+                    settingsDto,
+                    "Reminder settings created successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating reminder settings for donor ID: {DonorId}",
+                    reminderSettingsDto.DonorProfileId);
+                return new ApiResponse<DonorReminderSettingsDto>(
+                    HttpStatusCode.InternalServerError,
+                    "Error creating donation reminder settings");
             }
         }
 
@@ -229,19 +296,19 @@ namespace Services.Implementation
         {
             try
             {
-                // Ki?m tra ng??i hi?n máu
+                // Check donor
                 var donor = await _unitOfWork.DonorProfiles.GetByIdAsync(donorId);
                 if (donor == null || donor.DeletedTime != null)
                 {
                     return new ApiResponse<DonorReminderSettingsDto>(
                         HttpStatusCode.NotFound,
-                        "Không tìm th?y h? s? ng??i hi?n máu");
+                        "Donor profile not found");
                 }
 
-                // L?y cài ??t nh?c nh?
+                // Get reminder settings
                 var reminderSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(donorId);
 
-                // N?u ch?a có cài ??t, t?o cài ??t m?c ??nh
+                // If no settings exist, create default settings
                 if (reminderSettings == null)
                 {
                     reminderSettings = new DonorReminderSettings
@@ -256,7 +323,7 @@ namespace Services.Implementation
                     await _unitOfWork.DonorReminderSettings.AddAsync(reminderSettings);
                     await _unitOfWork.CompleteAsync();
 
-                    // L?y l?i cài ??t v?i thông tin ??y ??
+                    // Get the settings with full details
                     reminderSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(donorId);
                 }
 
@@ -278,10 +345,10 @@ namespace Services.Implementation
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "L?i khi l?y cài ??t nh?c nh? cho ng??i hi?n máu ID: {DonorId}", donorId);
+                _logger.LogError(ex, "Error getting reminder settings for donor ID: {DonorId}", donorId);
                 return new ApiResponse<DonorReminderSettingsDto>(
                     HttpStatusCode.InternalServerError,
-                    "L?i khi l?y cài ??t nh?c nh? hi?n máu");
+                    "Error getting donation reminder settings");
             }
         }
 
@@ -289,19 +356,19 @@ namespace Services.Implementation
         {
             try
             {
-                // Ki?m tra ng??i hi?n máu
+                // Check donor
                 var donor = await _unitOfWork.DonorProfiles.GetByIdAsync(reminderSettingsDto.DonorProfileId);
                 if (donor == null || donor.DeletedTime != null)
                 {
                     return new ApiResponse<DonorReminderSettingsDto>(
                         HttpStatusCode.NotFound,
-                        "Không tìm th?y h? s? ng??i hi?n máu");
+                        "Donor profile not found");
                 }
 
-                // L?y cài ??t nh?c nh?
+                // Get reminder settings
                 var reminderSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(reminderSettingsDto.DonorProfileId);
 
-                // N?u ch?a có cài ??t, t?o m?i
+                // If no settings exist, create new
                 if (reminderSettings == null)
                 {
                     reminderSettings = new DonorReminderSettings
@@ -318,7 +385,7 @@ namespace Services.Implementation
                 }
                 else
                 {
-                    // C?p nh?t cài ??t hi?n có
+                    // Update existing settings
                     reminderSettings.EnableReminders = reminderSettingsDto.EnableReminders;
                     reminderSettings.DaysBeforeEligible = reminderSettingsDto.DaysBeforeEligible;
                     reminderSettings.EmailNotifications = reminderSettingsDto.EmailNotifications;
@@ -330,7 +397,7 @@ namespace Services.Implementation
 
                 await _unitOfWork.CompleteAsync();
 
-                // L?y l?i cài ??t v?i thông tin ??y ??
+                // Get the updated settings with full details
                 var updatedSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(reminderSettingsDto.DonorProfileId);
 
                 var settingsDto = new DonorReminderSettingsDto
@@ -349,15 +416,15 @@ namespace Services.Implementation
 
                 return new ApiResponse<DonorReminderSettingsDto>(
                     settingsDto,
-                    "Cài ??t nh?c nh? ?ã ???c c?p nh?t thành công");
+                    "Reminder settings updated successfully");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "L?i khi c?p nh?t cài ??t nh?c nh? cho ng??i hi?n máu ID: {DonorId}",
+                _logger.LogError(ex, "Error updating reminder settings for donor ID: {DonorId}",
                     reminderSettingsDto.DonorProfileId);
                 return new ApiResponse<DonorReminderSettingsDto>(
                     HttpStatusCode.InternalServerError,
-                    "L?i khi c?p nh?t cài ??t nh?c nh? hi?n máu");
+                    "Error updating donation reminder settings");
             }
         }
     }

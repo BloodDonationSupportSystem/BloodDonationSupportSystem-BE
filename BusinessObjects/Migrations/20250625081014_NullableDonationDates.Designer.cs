@@ -4,6 +4,7 @@ using BusinessObjects.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BusinessObjects.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250625081014_NullableDonationDates")]
+    partial class NullableDonationDates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -317,126 +320,6 @@ namespace BusinessObjects.Migrations
                     b.HasIndex("CreatedBy");
 
                     b.ToTable("Documents");
-                });
-
-            modelBuilder.Entity("BusinessObjects.Models.DonationAppointmentRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("BloodGroupId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("ComponentTypeId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ConfirmedDate")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("ConfirmedLocationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ConfirmedTimeSlot")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("CreatedTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("DeletedTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<bool?>("DonorAccepted")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("DonorId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("DonorResponseAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DonorResponseNotes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("ExpiresAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("InitiatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsUrgent")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LastUpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("LastUpdatedTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("LocationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("PreferredDate")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("PreferredTimeSlot")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("int");
-
-                    b.Property<string>("RejectionReason")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RequestType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTimeOffset?>("ReviewedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("ReviewedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<Guid?>("WorkflowId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BloodGroupId");
-
-                    b.HasIndex("ComponentTypeId");
-
-                    b.HasIndex("ConfirmedLocationId");
-
-                    b.HasIndex("DonorId");
-
-                    b.HasIndex("ExpiresAt");
-
-                    b.HasIndex("InitiatedByUserId");
-
-                    b.HasIndex("ReviewedByUserId");
-
-                    b.HasIndex("WorkflowId");
-
-                    b.HasIndex("IsUrgent", "Priority");
-
-                    b.HasIndex("LocationId", "PreferredDate");
-
-                    b.HasIndex("Status", "RequestType");
-
-                    b.ToTable("DonationAppointmentRequests");
                 });
 
             modelBuilder.Entity("BusinessObjects.Models.DonationEvent", b =>
@@ -998,67 +881,6 @@ namespace BusinessObjects.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("BusinessObjects.Models.DonationAppointmentRequest", b =>
-                {
-                    b.HasOne("BusinessObjects.Models.BloodGroup", "BloodGroup")
-                        .WithMany()
-                        .HasForeignKey("BloodGroupId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("BusinessObjects.Models.ComponentType", "ComponentType")
-                        .WithMany()
-                        .HasForeignKey("ComponentTypeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("BusinessObjects.Models.Location", "ConfirmedLocation")
-                        .WithMany()
-                        .HasForeignKey("ConfirmedLocationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("BusinessObjects.Models.DonorProfile", "Donor")
-                        .WithMany()
-                        .HasForeignKey("DonorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BusinessObjects.Models.User", "InitiatedByUser")
-                        .WithMany()
-                        .HasForeignKey("InitiatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("BusinessObjects.Models.Location", "Location")
-                        .WithMany()
-                        .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BusinessObjects.Models.User", "ReviewedByUser")
-                        .WithMany()
-                        .HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("BusinessObjects.Models.BloodDonationWorkflow", "Workflow")
-                        .WithMany()
-                        .HasForeignKey("WorkflowId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("BloodGroup");
-
-                    b.Navigation("ComponentType");
-
-                    b.Navigation("ConfirmedLocation");
-
-                    b.Navigation("Donor");
-
-                    b.Navigation("InitiatedByUser");
-
-                    b.Navigation("Location");
-
-                    b.Navigation("ReviewedByUser");
-
-                    b.Navigation("Workflow");
                 });
 
             modelBuilder.Entity("BusinessObjects.Models.DonationEvent", b =>

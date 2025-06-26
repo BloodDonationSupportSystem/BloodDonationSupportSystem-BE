@@ -9,7 +9,7 @@ namespace BusinessObjects.Dtos
         public Guid Id { get; set; }
         public DateTimeOffset DateOfBirth { get; set; }
         public bool Gender { get; set; }
-        public DateTimeOffset LastDonationDate { get; set; }
+        public DateTimeOffset? LastDonationDate { get; set; } // Changed to nullable
         public string HealthStatus { get; set; }
         public DateTimeOffset LastHealthCheckDate { get; set; }
         public int TotalDonations { get; set; }
@@ -35,8 +35,8 @@ namespace BusinessObjects.Dtos
 
         public bool Gender { get; set; }
 
-        [Required(ErrorMessage = "Last donation date is required")]
-        public DateTimeOffset LastDonationDate { get; set; }
+        // Changed to nullable and removed Required attribute
+        public DateTimeOffset? LastDonationDate { get; set; }
 
         [Required(ErrorMessage = "Health status is required")]
         [StringLength(100, ErrorMessage = "Health status cannot be longer than 100 characters")]
@@ -52,10 +52,8 @@ namespace BusinessObjects.Dtos
         [StringLength(500, ErrorMessage = "Address cannot be longer than 500 characters")]
         public string Address { get; set; }
 
-        [RegularExpression(@"^-?([1-8]?[1-9]|[1-9]0)\.{1}\d{1,6}$", ErrorMessage = "Latitude must be in decimal format (e.g. 41.123456)")]
         public string Latitude { get; set; }
 
-        [RegularExpression(@"^-?([1]?[1-7][1-9]|[1]?[1-8][0]|[1-9]?[0-9])\.{1}\d{1,6}$", ErrorMessage = "Longitude must be in decimal format (e.g. -71.123456)")]
         public string Longitude { get; set; }
 
         [Required(ErrorMessage = "User ID is required")]
@@ -81,8 +79,8 @@ namespace BusinessObjects.Dtos
 
         public bool Gender { get; set; }
 
-        [Required(ErrorMessage = "Last donation date is required")]
-        public DateTimeOffset LastDonationDate { get; set; }
+        // Changed to nullable and removed Required attribute
+        public DateTimeOffset? LastDonationDate { get; set; }
 
         [Required(ErrorMessage = "Health status is required")]
         [StringLength(100, ErrorMessage = "Health status cannot be longer than 100 characters")]
@@ -98,10 +96,8 @@ namespace BusinessObjects.Dtos
         [StringLength(500, ErrorMessage = "Address cannot be longer than 500 characters")]
         public string Address { get; set; }
 
-        [RegularExpression(@"^-?([1-8]?[1-9]|[1-9]0)\.{1}\d{1,6}$", ErrorMessage = "Latitude must be in decimal format (e.g. 41.123456)")]
         public string Latitude { get; set; }
 
-        [RegularExpression(@"^-?([1]?[1-7][1-9]|[1]?[1-8][0]|[1-9]?[0-9])\.{1}\d{1,6}$", ErrorMessage = "Longitude must be in decimal format (e.g. -71.123456)")]
         public string Longitude { get; set; }
 
         [Required(ErrorMessage = "Blood group ID is required")]
@@ -149,12 +145,8 @@ namespace BusinessObjects.Dtos
 
     public class NearbyDonorSearchDto
     {
-        [Required(ErrorMessage = "Latitude is required")]
-        [RegularExpression(@"^-?([1-8]?[1-9]|[1-9]0)\.{1}\d{1,6}$", ErrorMessage = "Latitude must be in decimal format (e.g. 41.123456)")]
         public double Latitude { get; set; }
         
-        [Required(ErrorMessage = "Longitude is required")]
-        [RegularExpression(@"^-?([1]?[1-7][1-9]|[1]?[1-8][0]|[1-9]?[0-9])\.{1}\d{1,6}$", ErrorMessage = "Longitude must be in decimal format (e.g. -71.123456)")]
         public double Longitude { get; set; }
         
         [Required(ErrorMessage = "Radius is required")]

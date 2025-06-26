@@ -11,7 +11,7 @@ namespace BusinessObjects.Models
         public Guid Id { get; set; } = Guid.NewGuid();
         public DateTimeOffset DateOfBirth { get; set; } = DateTimeOffset.UtcNow;
         public bool Gender { get; set; }
-        public DateTimeOffset LastDonationDate { get; set; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? LastDonationDate { get; set; } // Changed to nullable
         public string HealthStatus { get; set; } = string.Empty;
         public DateTimeOffset LastHealthCheckDate { get; set; } = DateTimeOffset.UtcNow;
         public int TotalDonations { get; set; }

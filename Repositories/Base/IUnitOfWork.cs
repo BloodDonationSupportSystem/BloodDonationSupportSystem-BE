@@ -24,6 +24,7 @@ namespace Repositories.Base
         IBloodDonationWorkflowRepository BloodDonationWorkflows { get; }
         IDonorReminderSettingsRepository DonorReminderSettings { get; }
         IAnalyticsRepository Analytics { get; }
+        IDonationAppointmentRequestRepository DonationAppointmentRequests { get; }
         
         Task<int> CompleteAsync();
     }

@@ -20,8 +20,8 @@ namespace Shared.Models
             set => _pageSize = Math.Min(MaxPageSize, Math.Max(1, value));
         }
 
-        // Sort params
-        public string SortBy { get; set; }
+        // Sort params - making SortBy nullable to make it optional
+        public string? SortBy { get; set; }
         public bool SortAscending { get; set; } = true;
     }
 }

@@ -83,8 +83,11 @@ namespace BloodDonationSupportSystem.Controllers
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> GetPagedNotificationsByUserId(Guid userId, [FromQuery] NotificationParameters parameters)
+        public async Task<IActionResult> GetPagedNotificationsByUserId(Guid userId, [FromQuery] NotificationParameters? parameters = null)
         {
+            // Provide default parameters if null
+            parameters ??= new NotificationParameters();
+
             var response = await _notificationService.GetPagedNotificationsByUserIdAsync(userId, parameters);
             return HandleResponse(response);
         }

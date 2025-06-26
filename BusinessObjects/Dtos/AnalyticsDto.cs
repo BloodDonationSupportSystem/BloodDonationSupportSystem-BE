@@ -43,7 +43,7 @@ namespace BusinessObjects.Dtos
         public Guid DonorId { get; set; }
         public string DonorName { get; set; } = string.Empty;
         public int TotalDonations { get; set; }
-        public DateTimeOffset LastDonationDate { get; set; }
+        public DateTimeOffset? LastDonationDate { get; set; }
         public string BloodGroupName { get; set; } = string.Empty;
     }
 

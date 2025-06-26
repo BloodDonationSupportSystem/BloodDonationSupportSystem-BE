@@ -106,7 +106,7 @@ namespace Repositories.Implementation
             // Apply user filter
             query = query.Where(n => n.UserId == userId);
 
-            // Apply filters
+            // Apply filters - only if not null/empty
             if (!string.IsNullOrEmpty(parameters.Type))
             {
                 query = query.Where(n => n.Type == parameters.Type);
@@ -126,7 +126,7 @@ namespace Repositories.Implementation
             // Include related entities
             query = query.Include(n => n.User);
 
-            // Apply sorting
+            // Apply sorting with more cases and default to newest first
             query = parameters.SortBy?.ToLower() switch
             {
                 "type" => parameters.SortAscending 
@@ -135,9 +135,10 @@ namespace Repositories.Implementation
                 "read" => parameters.SortAscending 
                     ? query.OrderBy(n => n.IsRead) 
                     : query.OrderByDescending(n => n.IsRead),
-                _ => parameters.SortAscending 
+                "createdtime" or "created" or "date" => parameters.SortAscending 
                     ? query.OrderBy(n => n.CreatedTime) 
-                    : query.OrderByDescending(n => n.CreatedTime)
+                    : query.OrderByDescending(n => n.CreatedTime),
+                _ => query.OrderByDescending(n => n.CreatedTime) // Default: newest first
             };
 
             // Apply pagination

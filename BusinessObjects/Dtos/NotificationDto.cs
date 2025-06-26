@@ -7,24 +7,28 @@ namespace BusinessObjects.Dtos
     public class NotificationDto
     {
         public Guid Id { get; set; }
-        public string Type { get; set; }
-        public string Message { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
         public bool IsRead { get; set; }
         public Guid UserId { get; set; }
-        public string UserName { get; set; }
+        public string UserName { get; set; } = string.Empty;
         public DateTimeOffset? CreatedTime { get; set; }
         public DateTimeOffset? LastUpdatedTime { get; set; }
     }
 
     public class CreateNotificationDto
     {
+        [Required(ErrorMessage = "Notification title is required")]
+        [StringLength(100, ErrorMessage = "Title cannot be longer than 100 characters")]
+        public string Title { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Notification type is required")]
         [StringLength(50, ErrorMessage = "Type cannot be longer than 50 characters")]
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Message is required")]
         [StringLength(500, ErrorMessage = "Message cannot be longer than 500 characters")]
-        public string Message { get; set; }
+        public string Message { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "User ID is required")]
         public Guid UserId { get; set; }
@@ -37,7 +41,7 @@ namespace BusinessObjects.Dtos
 
     public class NotificationParameters : PaginationParameters
     {
-        public string Type { get; set; }
+        public string? Type { get; set; }
         public bool? IsRead { get; set; }
     }
 }

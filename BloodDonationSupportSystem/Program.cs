@@ -143,6 +143,10 @@ builder.Services.AddScoped<IBloodDonationWorkflowService, BloodDonationWorkflowS
 builder.Services.AddScoped<IDonationReminderService, DonationReminderService>();
 builder.Services.AddScoped<IDonorReminderSettingsRepository, DonorReminderSettingsRepository>();
 
+// DonationAppointmentRequest
+builder.Services.AddScoped<IDonationAppointmentRequestRepository, DonationAppointmentRequestRepository>();
+builder.Services.AddScoped<IDonationAppointmentRequestService, DonationAppointmentRequestService>();
+
 // Analytics, Dashboard and Report Services
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();

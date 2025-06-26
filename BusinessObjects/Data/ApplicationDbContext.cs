@@ -23,6 +23,7 @@ namespace BusinessObjects.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<BloodDonationWorkflow> BloodDonationWorkflows { get; set; }
         public DbSet<DonorReminderSettings> DonorReminderSettings { get; set; }
+        public DbSet<DonationAppointmentRequest> DonationAppointmentRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -190,6 +191,55 @@ namespace BusinessObjects.Data
                 .HasForeignKey<DonorReminderSettings>(drs => drs.DonorProfileId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // DonationAppointmentRequest relationships
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.Donor)
+                .WithMany()
+                .HasForeignKey(dar => dar.DonorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.Location)
+                .WithMany()
+                .HasForeignKey(dar => dar.LocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.BloodGroup)
+                .WithMany()
+                .HasForeignKey(dar => dar.BloodGroupId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.ComponentType)
+                .WithMany()
+                .HasForeignKey(dar => dar.ComponentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.InitiatedByUser)
+                .WithMany()
+                .HasForeignKey(dar => dar.InitiatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(dar => dar.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.ConfirmedLocation)
+                .WithMany()
+                .HasForeignKey(dar => dar.ConfirmedLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.Workflow)
+                .WithMany()
+                .HasForeignKey(dar => dar.WorkflowId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Set up appropriate indices for frequently queried fields
             modelBuilder.Entity<BloodInventory>()
                 .HasIndex(bi => new { bi.BloodGroupId, bi.ComponentTypeId, bi.ExpirationDate, bi.Status });
@@ -232,6 +282,22 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<DonorReminderSettings>()
                 .HasIndex(drs => new { drs.EnableReminders, drs.LastReminderSentTime });
+
+            // Add indices for DonationAppointmentRequest
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasIndex(dar => new { dar.Status, dar.RequestType });
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasIndex(dar => dar.DonorId);
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasIndex(dar => new { dar.LocationId, dar.PreferredDate });
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasIndex(dar => new { dar.IsUrgent, dar.Priority });
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasIndex(dar => dar.ExpiresAt);
 
             // Configure constraints and properties
             modelBuilder.Entity<BloodGroup>()
