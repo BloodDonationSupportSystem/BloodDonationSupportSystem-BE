@@ -80,6 +80,21 @@ namespace BusinessObjects.Dtos
         public string PhoneNumber { get; set; } = string.Empty;
     }
 
+    public class RegisterStaffWithLocationDto : RegisterUserDto
+    {
+        [Required(ErrorMessage = "Location ID is required")]
+        public Guid LocationId { get; set; }
+
+        [Required(ErrorMessage = "Role is required")]
+        [RegularExpression("^(LocationManager|Staff|Supervisor)$", ErrorMessage = "Role must be LocationManager, Staff, or Supervisor")]
+        public string LocationRole { get; set; } = string.Empty;
+
+        public bool CanManageCapacity { get; set; } = false;
+        public bool CanApproveAppointments { get; set; } = false;
+        public bool CanViewReports { get; set; } = false;
+        public string? Notes { get; set; }
+    }
+
     public class UpdateUserDto
     {
         [Required(ErrorMessage = "Email is required")]
@@ -189,5 +204,11 @@ namespace BusinessObjects.Dtos
     {
         [Required(ErrorMessage = "Refresh token is required")]
         public string RefreshToken { get; set; } = string.Empty;
+    }
+
+    public class StaffWithLocationsDto
+    {
+        public UserDto Staff { get; set; }
+        public List<LocationStaffAssignmentDto> Locations { get; set; } = new();
     }
 }

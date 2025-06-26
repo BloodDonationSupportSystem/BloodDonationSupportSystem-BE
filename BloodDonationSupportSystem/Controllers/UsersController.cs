@@ -72,6 +72,32 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+        // GET: api/Users/staffs
+        [HttpGet("staffs")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<StaffWithLocationsDto>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetStaffUsersWithLocations()
+        {
+            var response = await _userService.GetStaffUsersWithLocationsAsync();
+            return HandleResponse(response);
+        }
+
+        // GET: api/Users/members
+        [HttpGet("members")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserDto>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetMemberUsers()
+        {
+            var response = await _userService.GetMemberUsersAsync();
+            return HandleResponse(response);
+        }
+
         // POST: api/Users
         [HttpPost]
         [Authorize(Roles = "Admin")]

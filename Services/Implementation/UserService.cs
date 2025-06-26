@@ -26,6 +26,151 @@ namespace Services.Implementation
             _jwtService = jwtService;
         }
 
+        public async Task<ApiResponse<UserDto>> RegisterStaffWithLocationAsync(RegisterStaffWithLocationDto dto)
+        {
+            try
+            {
+                // Check if username already exists
+                var existingUserName = await _unitOfWork.Users.GetByUsernameAsync(dto.UserName);
+                if (existingUserName != null)
+                {
+                    return new ApiResponse<UserDto>(System.Net.HttpStatusCode.Conflict, $"Username '{dto.UserName}' is already taken");
+                }
+
+                // Check if email already exists
+                var existingEmail = await _unitOfWork.Users.GetByEmailAsync(dto.Email);
+                if (existingEmail != null)
+                {
+                    return new ApiResponse<UserDto>(System.Net.HttpStatusCode.Conflict, $"Email '{dto.Email}' is already registered");
+                }
+
+                // Get the role directly by name (for system role, not location role)
+                var role = await _unitOfWork.Roles.GetByNameAsync("Staff");
+                if (role == null)
+                {
+                    return new ApiResponse<UserDto>(System.Net.HttpStatusCode.BadRequest, $"System role 'Staff' does not exist");
+                }
+
+                // Check if location exists
+                var location = await _unitOfWork.Locations.GetByIdAsync(dto.LocationId);
+                if (location == null)
+                {
+                    return new ApiResponse<UserDto>(System.Net.HttpStatusCode.BadRequest, $"Location with ID {dto.LocationId} does not exist");
+                }
+
+                // Hash the password
+                string hashedPassword = HashPassword(dto.Password);
+
+                var user = new User();
+                user.UserName = dto.UserName;
+                user.Email = dto.Email;
+                user.Password = hashedPassword;
+                user.FirstName = dto.FirstName;
+                user.LastName = dto.LastName;
+                user.PhoneNumber = dto.PhoneNumber;
+                user.LastLogin = DateTimeOffset.UtcNow;
+                user.RoleId = role.Id;
+
+                await _unitOfWork.Users.AddAsync(user);
+                await _unitOfWork.CompleteAsync();
+
+                // Reload to get the user with ID
+                user = await _unitOfWork.Users.GetByIdAsync(user.Id);
+
+                // Assign location for staff
+                var assignment = new LocationStaffAssignment
+                {
+                    LocationId = dto.LocationId,
+                    UserId = user.Id,
+                    Role = dto.LocationRole,
+                    CanManageCapacity = dto.CanManageCapacity,
+                    CanApproveAppointments = dto.CanApproveAppointments,
+                    CanViewReports = dto.CanViewReports,
+                    AssignedDate = DateTimeOffset.UtcNow,
+                    IsActive = true,
+                    Notes = dto.Notes
+                };
+                await _unitOfWork.LocationStaffAssignments.AddAsync(assignment);
+                await _unitOfWork.CompleteAsync();
+
+                string message = $"Staff registered and assigned to location successfully!";
+                return new ApiResponse<UserDto>(MapToDto(user), message)
+                {
+                    StatusCode = System.Net.HttpStatusCode.Created
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<UserDto>(System.Net.HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<IEnumerable<StaffWithLocationsDto>>> GetStaffUsersWithLocationsAsync()
+        {
+            try
+            {
+                var staffRole = await _unitOfWork.Roles.GetByNameAsync("Staff");
+                if (staffRole == null)
+                {
+                    return new ApiResponse<IEnumerable<StaffWithLocationsDto>>(HttpStatusCode.BadRequest, "Staff role not found");
+                }
+                var staffUsers = await _unitOfWork.Users.GetUsersByRoleIdAsync(staffRole.Id);
+                var result = new List<StaffWithLocationsDto>();
+                foreach (var staff in staffUsers)
+                {
+                    var assignments = await _unitOfWork.LocationStaffAssignments.GetByUserIdAsync(staff.Id);
+                    var assignmentDtos = assignments.Select(a => new BusinessObjects.Dtos.LocationStaffAssignmentDto
+                    {
+                        Id = a.Id,
+                        LocationId = a.LocationId,
+                        LocationName = a.Location?.Name ?? string.Empty,
+                        UserId = a.UserId,
+                        UserName = staff.UserName,
+                        UserEmail = staff.Email,
+                        Role = a.Role,
+                        CanManageCapacity = a.CanManageCapacity,
+                        CanApproveAppointments = a.CanApproveAppointments,
+                        CanViewReports = a.CanViewReports,
+                        AssignedDate = a.AssignedDate,
+                        UnassignedDate = a.UnassignedDate,
+                        IsActive = a.IsActive,
+                        Notes = a.Notes,
+                        CreatedTime = a.CreatedTime,
+                        LastUpdatedTime = a.LastUpdatedTime
+                    }).ToList();
+                    result.Add(new StaffWithLocationsDto
+                    {
+                        Staff = MapToDto(staff),
+                        Locations = assignmentDtos
+                    });
+                }
+                return new ApiResponse<IEnumerable<StaffWithLocationsDto>>(result, "Get staff users with locations successfully");
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<IEnumerable<StaffWithLocationsDto>>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<IEnumerable<UserDto>>> GetMemberUsersAsync()
+        {
+            try
+            {
+                var memberRole = await _unitOfWork.Roles.GetByNameAsync("Member");
+                if (memberRole == null)
+                {
+                    return new ApiResponse<IEnumerable<UserDto>>(HttpStatusCode.BadRequest, "Member role not found");
+                }
+                var members = await _unitOfWork.Users.GetUsersByRoleIdAsync(memberRole.Id);
+                var memberDtos = members.Select(MapToDto).ToList();
+                return new ApiResponse<IEnumerable<UserDto>>(memberDtos, "Get member users successfully");
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<IEnumerable<UserDto>>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<IEnumerable<UserDto>>> GetAllUsersAsync()
         {
             try

@@ -18,6 +18,24 @@ namespace BloodDonationSupportSystem.Controllers
             _userService = userService;
         }
 
+        // POST: api/Auth/register-staff-with-location
+        [HttpPost("register-staff-with-location")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(ApiResponse<UserDto>), 201)]
+        [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 409)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> RegisterStaffWithLocation([FromBody] RegisterStaffWithLocationDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResponse(HandleValidationErrors<UserDto>(ModelState));
+            }
+
+            var response = await _userService.RegisterStaffWithLocationAsync(dto);
+            return HandleResponse(response);
+        }
+
         // POST: api/Auth/register
         [HttpPost("register")]
         [AllowAnonymous]

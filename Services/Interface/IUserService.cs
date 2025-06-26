@@ -22,6 +22,7 @@ namespace Services.Interface
         // Registration methods (simplified)
         Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto);
         Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto, string roleName);
+        Task<ApiResponse<UserDto>> RegisterStaffWithLocationAsync(RegisterStaffWithLocationDto dto);
         
         // Password reset (simplified)
         Task<ApiResponse> ResetPasswordAsync(ResetPasswordDto resetPasswordDto);
@@ -30,5 +31,8 @@ namespace Services.Interface
         Task<ApiResponse> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto);
         Task<ApiResponse> VerifyEmailAsync(VerifyEmailDto verifyEmailDto);
         Task<ApiResponse> ResendVerificationEmailAsync(string email);
+
+        Task<ApiResponse<IEnumerable<StaffWithLocationsDto>>> GetStaffUsersWithLocationsAsync();
+        Task<ApiResponse<IEnumerable<UserDto>>> GetMemberUsersAsync();
     }
 }
