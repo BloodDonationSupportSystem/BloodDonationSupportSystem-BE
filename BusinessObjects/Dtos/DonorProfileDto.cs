@@ -159,4 +159,22 @@ namespace BusinessObjects.Dtos
         
         public bool? IsAvailableForEmergency { get; set; }
     }
+
+    public class DonorEligibilityResultDto
+    {
+        public bool IsEligible { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public DateTimeOffset? NextAvailableDonationDate { get; set; }
+        public PendingAppointmentDto? PendingAppointment { get; set; }
+    }
+
+    public class PendingAppointmentDto
+    {
+        public Guid Id { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTimeOffset PreferredDate { get; set; }
+        public string PreferredTimeSlot { get; set; } = string.Empty;
+        public string? LocationName { get; set; }
+        public string? Notes { get; set; }
+    }
 }

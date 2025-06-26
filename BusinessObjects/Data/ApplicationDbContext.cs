@@ -19,6 +19,9 @@ namespace BusinessObjects.Data
         public DbSet<DonorProfile> DonorProfiles { get; set; }
         public DbSet<EmergencyRequest> EmergencyRequests { get; set; }
         public DbSet<Location> Locations { get; set; }
+        public DbSet<LocationCapacity> LocationCapacities { get; set; }
+        public DbSet<LocationStaffAssignment> LocationStaffAssignments { get; set; }
+        public DbSet<LocationOperatingHours> LocationOperatingHours { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<BloodDonationWorkflow> BloodDonationWorkflows { get; set; }
@@ -90,7 +93,7 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<BloodRequest>()
                 .HasOne(br => br.Location)
-                .WithMany()
+                .WithMany(l => l.BloodRequests)
                 .HasForeignKey(br => br.LocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -122,7 +125,7 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<DonationEvent>()
                 .HasOne(de => de.Location)
-                .WithMany()
+                .WithMany(l => l.DonationEvents)
                 .HasForeignKey(de => de.LocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -200,7 +203,7 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<DonationAppointmentRequest>()
                 .HasOne(dar => dar.Location)
-                .WithMany()
+                .WithMany(l => l.AppointmentRequests)
                 .HasForeignKey(dar => dar.LocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -230,7 +233,7 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<DonationAppointmentRequest>()
                 .HasOne(dar => dar.ConfirmedLocation)
-                .WithMany()
+                .WithMany(l => l.ConfirmedAppointmentRequests)
                 .HasForeignKey(dar => dar.ConfirmedLocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -239,6 +242,33 @@ namespace BusinessObjects.Data
                 .WithMany()
                 .HasForeignKey(dar => dar.WorkflowId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // LocationCapacity relationships
+            modelBuilder.Entity<LocationCapacity>()
+                .HasOne(lc => lc.Location)
+                .WithMany(l => l.LocationCapacities)
+                .HasForeignKey(lc => lc.LocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // LocationStaffAssignment relationships
+            modelBuilder.Entity<LocationStaffAssignment>()
+                .HasOne(lsa => lsa.Location)
+                .WithMany(l => l.StaffAssignments)
+                .HasForeignKey(lsa => lsa.LocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationStaffAssignment>()
+                .HasOne(lsa => lsa.User)
+                .WithMany()
+                .HasForeignKey(lsa => lsa.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // LocationOperatingHours relationships
+            modelBuilder.Entity<LocationOperatingHours>()
+                .HasOne(loh => loh.Location)
+                .WithMany()
+                .HasForeignKey(loh => loh.LocationId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Set up appropriate indices for frequently queried fields
             modelBuilder.Entity<BloodInventory>()
@@ -299,6 +329,23 @@ namespace BusinessObjects.Data
             modelBuilder.Entity<DonationAppointmentRequest>()
                 .HasIndex(dar => dar.ExpiresAt);
 
+            // Add indices for Location management
+            modelBuilder.Entity<LocationCapacity>()
+                .HasIndex(lc => new { lc.LocationId, lc.TimeSlot, lc.DayOfWeek });
+
+            modelBuilder.Entity<LocationCapacity>()
+                .HasIndex(lc => new { lc.EffectiveDate, lc.ExpiryDate, lc.IsActive });
+
+            modelBuilder.Entity<LocationStaffAssignment>()
+                .HasIndex(lsa => new { lsa.LocationId, lsa.UserId, lsa.IsActive });
+
+            modelBuilder.Entity<LocationStaffAssignment>()
+                .HasIndex(lsa => new { lsa.UserId, lsa.IsActive });
+
+            modelBuilder.Entity<LocationOperatingHours>()
+                .HasIndex(loh => new { loh.LocationId, loh.DayOfWeek })
+                .IsUnique();
+
             // Configure constraints and properties
             modelBuilder.Entity<BloodGroup>()
                 .HasIndex(bg => bg.GroupName)
@@ -314,6 +361,16 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<Location>()
                 .HasIndex(l => l.Name)
+                .IsUnique();
+
+            // LocationCapacity constraints
+            modelBuilder.Entity<LocationCapacity>()
+                .HasCheckConstraint("CK_LocationCapacity_TotalCapacity", "TotalCapacity >= 0");
+
+            // LocationStaffAssignment unique constraint for active assignments
+            modelBuilder.Entity<LocationStaffAssignment>()
+                .HasIndex(lsa => new { lsa.LocationId, lsa.UserId })
+                .HasFilter("IsActive = 1")
                 .IsUnique();
         }
     }

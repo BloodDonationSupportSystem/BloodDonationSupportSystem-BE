@@ -10,6 +10,9 @@ namespace Repositories.Base
     {
         private readonly ApplicationDbContext _context;
         private ILocationRepository _locationRepository;
+        private ILocationCapacityRepository _locationCapacityRepository;
+        private ILocationStaffAssignmentRepository _locationStaffAssignmentRepository;
+        private ILocationOperatingHoursRepository _locationOperatingHoursRepository;
         private IBloodGroupRepository _bloodGroupRepository;
         private IComponentTypeRepository _componentTypeRepository;
         private IRoleRepository _roleRepository;
@@ -34,6 +37,9 @@ namespace Repositories.Base
         }
 
         public ILocationRepository Locations => _locationRepository ??= new LocationRepository(_context);
+        public ILocationCapacityRepository LocationCapacities => _locationCapacityRepository ??= new LocationCapacityRepository(_context);
+        public ILocationStaffAssignmentRepository LocationStaffAssignments => _locationStaffAssignmentRepository ??= new LocationStaffAssignmentRepository(_context);
+        public ILocationOperatingHoursRepository LocationOperatingHours => _locationOperatingHoursRepository ??= new LocationOperatingHoursRepository(_context);
         public IBloodGroupRepository BloodGroups => _bloodGroupRepository ??= new BloodGroupRepository(_context);
         public IComponentTypeRepository ComponentTypes => _componentTypeRepository ??= new ComponentTypeRepository(_context);
         public IRoleRepository Roles => _roleRepository ??= new RoleRepository(_context);

@@ -365,6 +365,17 @@ namespace Services.Implementation
                 for (int i = 0; i < days; i++)
                 {
                     var date = startDate.AddDays(i);
+                    var dayOfWeek = date.DayOfWeek;
+                    
+                    // Get location capacities for this date and day of week
+                    var locationCapacities = await _unitOfWork.LocationCapacities
+                        .FindAsync(lc => lc.LocationId == locationId && 
+                                        lc.IsActive && 
+                                        (lc.DayOfWeek == null || lc.DayOfWeek == dayOfWeek) &&
+                                        (lc.EffectiveDate == null || lc.EffectiveDate <= date) &&
+                                        (lc.ExpiryDate == null || lc.ExpiryDate >= date));
+
+                    // Get existing bookings for this date
                     var timeSlotCounts = await _unitOfWork.DonationAppointmentRequests.GetTimeSlotCapacityAsync(locationId, date);
 
                     var daySlots = new AvailableTimeSlotsDto
@@ -372,31 +383,27 @@ namespace Services.Implementation
                         LocationId = locationId,
                         LocationName = location.Name,
                         Date = date,
-                        AvailableSlots = new List<TimeSlotDto>
-                        {
-                            new TimeSlotDto
-                            {
-                                TimeSlot = "Morning",
-                                AvailableCapacity = Math.Max(0, DefaultTimeSlotCapacity - timeSlotCounts.GetValueOrDefault("Morning", 0)),
-                                TotalCapacity = DefaultTimeSlotCapacity,
-                                IsAvailable = timeSlotCounts.GetValueOrDefault("Morning", 0) < DefaultTimeSlotCapacity
-                            },
-                            new TimeSlotDto
-                            {
-                                TimeSlot = "Afternoon",
-                                AvailableCapacity = Math.Max(0, DefaultTimeSlotCapacity - timeSlotCounts.GetValueOrDefault("Afternoon", 0)),
-                                TotalCapacity = DefaultTimeSlotCapacity,
-                                IsAvailable = timeSlotCounts.GetValueOrDefault("Afternoon", 0) < DefaultTimeSlotCapacity
-                            },
-                            new TimeSlotDto
-                            {
-                                TimeSlot = "Evening",
-                                AvailableCapacity = Math.Max(0, DefaultTimeSlotCapacity - timeSlotCounts.GetValueOrDefault("Evening", 0)),
-                                TotalCapacity = DefaultTimeSlotCapacity,
-                                IsAvailable = timeSlotCounts.GetValueOrDefault("Evening", 0) < DefaultTimeSlotCapacity
-                            }
-                        }
+                        AvailableSlots = new List<TimeSlotDto>()
                     };
+
+                    // Create time slots based on capacities or use defaults
+                    var timeSlots = new[] { "Morning", "Afternoon", "Evening" };
+                    
+                    foreach (var timeSlot in timeSlots)
+                    {
+                        // Find specific capacity for this time slot
+                        var capacity = locationCapacities.FirstOrDefault(lc => lc.TimeSlot == timeSlot);
+                        var totalCapacity = capacity?.TotalCapacity ?? DefaultTimeSlotCapacity;
+                        var bookedCount = timeSlotCounts.GetValueOrDefault(timeSlot, 0);
+
+                        daySlots.AvailableSlots.Add(new TimeSlotDto
+                        {
+                            TimeSlot = timeSlot,
+                            AvailableCapacity = Math.Max(0, totalCapacity - bookedCount),
+                            TotalCapacity = totalCapacity,
+                            IsAvailable = bookedCount < totalCapacity
+                        });
+                    }
 
                     availableSlots.Add(daySlots);
                 }

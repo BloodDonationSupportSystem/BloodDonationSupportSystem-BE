@@ -47,7 +47,7 @@ namespace BusinessObjects.Dtos
     {
         public Guid? AuthorId { get; set; }
         public bool? IsPublished { get; set; }
-        public string SearchTerm { get; set; }
+        public string? SearchTerm { get; set; }
         public DateTimeOffset? CreatedDateFrom { get; set; }
         public DateTimeOffset? CreatedDateTo { get; set; }
         public DateTimeOffset? UpdatedDateFrom { get; set; }

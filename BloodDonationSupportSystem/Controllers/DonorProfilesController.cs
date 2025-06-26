@@ -107,6 +107,19 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+
+        [HttpGet("check-eligibility/{userId}")]
+        [Authorize(Roles = "Staff,Member")]
+        [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> CheckEligibility(Guid userId)
+        {
+            var response = await _donorProfileService.CheckEligibilityAsync(userId);
+            return HandleResponse(response);
+        }
+
         // GET: api/DonorProfiles/bloodgroup/5
         [HttpGet("bloodgroup/{bloodGroupId}")]
         [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể tìm kiếm theo nhóm máu

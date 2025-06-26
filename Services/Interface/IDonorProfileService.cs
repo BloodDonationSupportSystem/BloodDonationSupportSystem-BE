@@ -8,6 +8,7 @@ namespace Services.Interface
 {
     public interface IDonorProfileService
     {
+        Task<ApiResponse<DonorEligibilityResultDto>> CheckEligibilityAsync(Guid userId);
         Task<ApiResponse<IEnumerable<DonorProfileDto>>> GetAllDonorProfilesAsync();
         Task<ApiResponse<DonorProfileDto>> GetDonorProfileByIdAsync(Guid id);
         Task<ApiResponse<DonorProfileDto>> GetDonorProfileByUserIdAsync(Guid userId);
