@@ -3,6 +3,7 @@ using BusinessObjects.Models;
 using Repositories.Base;
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace Repositories.Interface
@@ -34,5 +35,8 @@ namespace Repositories.Interface
         // Cleanup and maintenance
         Task<int> MarkExpiredRequestsAsync();
         Task<IEnumerable<DonationAppointmentRequest>> GetRequestsExpiringInHoursAsync(int hours);
+
+        // New: Find with Location included
+        Task<IEnumerable<DonationAppointmentRequest>> FindWithLocationAsync(Expression<System.Func<DonationAppointmentRequest, bool>> predicate);
     }
 }

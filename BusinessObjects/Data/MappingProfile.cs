@@ -279,7 +279,7 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.LocationAddress, opt => opt.MapFrom(src => 
                     src.Location != null ? src.Location.Address : string.Empty))
                 .ForMember(dest => dest.BloodGroupName, opt => opt.MapFrom(src => 
-                    src.BloodGroup != null ? src.BloodGroup.GroupName : null))
+                    src.BloodGroup != null ? src.BloodGroup.GroupName : (src.Donor != null && src.Donor.BloodGroup != null ? src.Donor.BloodGroup.GroupName : null)))
                 .ForMember(dest => dest.ComponentTypeName, opt => opt.MapFrom(src => 
                     src.ComponentType != null ? src.ComponentType.Name : null))
                 .ForMember(dest => dest.InitiatedByUserName, opt => opt.MapFrom(src => 

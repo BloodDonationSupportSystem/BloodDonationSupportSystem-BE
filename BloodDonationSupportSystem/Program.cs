@@ -152,6 +152,9 @@ builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 
+// Location Capacity Service
+builder.Services.AddScoped<ILocationCapacityService, LocationCapacityService>();
+
 // Register background service for donation reminders
 builder.Services.AddHostedService<DonationReminderBackgroundService>();
 

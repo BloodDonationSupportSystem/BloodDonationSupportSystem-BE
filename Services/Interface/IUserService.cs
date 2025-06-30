@@ -9,6 +9,7 @@ namespace Services.Interface
     public interface IUserService
     {
         Task<ApiResponse<IEnumerable<UserDto>>> GetAllUsersAsync();
+        Task<ApiResponse<UserDto>> UpdateUserActivationAsync(Guid userId, bool isActivated);
         Task<ApiResponse<UserDto>> GetUserByIdAsync(Guid id);
         Task<ApiResponse<UserDto>> GetUserByUsernameAsync(string username);
         Task<ApiResponse<UserDto>> CreateUserAsync(CreateUserDto userDto);

@@ -15,6 +15,8 @@ namespace BusinessObjects.Dtos
         public Guid RoleId { get; set; }
         public string RoleName { get; set; } = string.Empty;
         public bool IsEmailVerified { get; set; }
+        public DateTimeOffset CreatedTime { get; set; }
+        public bool IsActivated { get; set; }
     }
 
     public class CreateUserDto

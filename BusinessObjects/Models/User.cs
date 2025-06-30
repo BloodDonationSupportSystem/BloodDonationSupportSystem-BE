@@ -18,7 +18,9 @@ namespace BusinessObjects.Models
         public DateTimeOffset LastLogin { get; set; } = DateTimeOffset.UtcNow;
         public Guid RoleId { get; set; } = Guid.Empty;
         public virtual Role Role { get; set; }
-        
+        public DateTimeOffset CreatedTime { get; set; } = DateTimeOffset.UtcNow;
+        public bool IsActivated { get; set; } = true;
+
         // Navigation properties
         public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }

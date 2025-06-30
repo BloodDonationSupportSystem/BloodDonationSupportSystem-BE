@@ -60,5 +60,10 @@ namespace BusinessObjects.Models
         
         // Automatic Expiry
         public DateTimeOffset? ExpiresAt { get; set; }
+        
+        // Timing Details
+        public DateTimeOffset? CheckInTime { get; set; }
+        public DateTimeOffset? CompletedTime { get; set; }
+        public DateTimeOffset? CancelledTime { get; set; }
     }
 }

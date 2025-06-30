@@ -15,6 +15,7 @@ namespace Services.Interface
         Task<ApiResponse<IEnumerable<DonationAppointmentRequestDto>>> GetPendingStaffReviewsAsync();
         Task<ApiResponse<IEnumerable<DonationAppointmentRequestDto>>> GetPendingDonorResponsesAsync();
         Task<ApiResponse<IEnumerable<DonationAppointmentRequestDto>>> GetUrgentRequestsAsync();
+        Task<ApiResponse<DonationAppointmentRequestDto>> UpdateAppointmentStatusAsync(Guid requestId, UpdateAppointmentStatusDto updateDto);
 
         // Donor-initiated requests
         Task<ApiResponse<DonationAppointmentRequestDto>> CreateDonorAppointmentRequestAsync(CreateDonorAppointmentRequestDto requestDto, Guid donorUserId);

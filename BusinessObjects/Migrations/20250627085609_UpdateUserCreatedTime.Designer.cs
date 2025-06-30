@@ -4,6 +4,7 @@ using BusinessObjects.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BusinessObjects.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250627085609_UpdateUserCreatedTime")]
+    partial class UpdateUserCreatedTime
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -327,15 +330,6 @@ namespace BusinessObjects.Migrations
 
                     b.Property<Guid?>("BloodGroupId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("CancelledTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("CheckInTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("CompletedTime")
-                        .HasColumnType("datetimeoffset");
 
                     b.Property<Guid?>("ComponentTypeId")
                         .HasColumnType("uniqueidentifier");
@@ -824,6 +818,68 @@ namespace BusinessObjects.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BusinessObjects.Models.LocationOperatingHours", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<TimeSpan>("AfternoonEndTime")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan>("AfternoonStartTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("CreatedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("DeletedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<TimeSpan?>("EveningEndTime")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan?>("EveningStartTime")
+                        .HasColumnType("time");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastUpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("LastUpdatedTime")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<TimeSpan>("MorningEndTime")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan>("MorningStartTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId", "DayOfWeek")
+                        .IsUnique();
+
+                    b.ToTable("LocationOperatingHours");
+                });
+
             modelBuilder.Entity("BusinessObjects.Models.LocationStaffAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1009,9 +1065,6 @@ namespace BusinessObjects.Migrations
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActivated")
-                        .HasColumnType("bit");
 
                     b.Property<DateTimeOffset>("LastLogin")
                         .HasColumnType("datetimeoffset");
@@ -1320,6 +1373,17 @@ namespace BusinessObjects.Migrations
                 {
                     b.HasOne("BusinessObjects.Models.Location", "Location")
                         .WithMany("LocationCapacities")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("BusinessObjects.Models.LocationOperatingHours", b =>
+                {
+                    b.HasOne("BusinessObjects.Models.Location", "Location")
+                        .WithMany()
                         .HasForeignKey("LocationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

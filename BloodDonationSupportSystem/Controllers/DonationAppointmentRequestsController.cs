@@ -323,6 +323,36 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+        // PUT: api/DonationAppointmentRequests/{id}/status
+        [HttpPut("{id}/status")]
+        [Authorize(Roles = "Admin,Staff,Member")]
+        [ProducesResponseType(typeof(ApiResponse<DonationAppointmentRequestDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> UpdateAppointmentStatus(Guid id, [FromBody] UpdateAppointmentStatusDto updateDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResponse(HandleValidationErrors<DonationAppointmentRequestDto>(ModelState));
+            }
+
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+            {
+                return HandleResponse(new ApiResponse<DonationAppointmentRequestDto>(
+                    System.Net.HttpStatusCode.Unauthorized,
+                    "User not authenticated"));
+            }
+
+            updateDto.UpdatedByUserId = Guid.Parse(userIdClaim.Value);
+
+            var response = await _appointmentRequestService.UpdateAppointmentStatusAsync(id, updateDto);
+            return HandleResponse(response);
+        }
+
         // POST: api/DonationAppointmentRequests/5/modify
         [HttpPost("{id}/modify")]
         [Authorize(Roles = "Admin,Staff")]

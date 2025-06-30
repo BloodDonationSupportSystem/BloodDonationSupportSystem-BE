@@ -7,6 +7,7 @@ using Repositories.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace Repositories.Implementation
@@ -34,11 +35,21 @@ namespace Repositories.Implementation
                 .FirstOrDefaultAsync(r => r.Id == id && r.DeletedTime == null);
         }
 
+        public async Task<IEnumerable<DonationAppointmentRequest>> FindWithLocationAsync(Expression<Func<DonationAppointmentRequest, bool>> predicate)
+        {
+            return await _dbSet
+                .Include(x => x.Location)
+                .Where(predicate)
+                .ToListAsync();
+        }
+
         public async Task<(IEnumerable<DonationAppointmentRequest> items, int totalCount)> GetPagedAppointmentRequestsAsync(AppointmentRequestParameters parameters)
         {
             IQueryable<DonationAppointmentRequest> query = _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Include(r => r.Location)
                 .Include(r => r.BloodGroup)
                 .Include(r => r.ComponentType)
@@ -148,6 +159,8 @@ namespace Repositories.Implementation
         public async Task<IEnumerable<DonationAppointmentRequest>> GetRequestsByDonorIdAsync(Guid donorId)
         {
             return await _dbSet
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Include(r => r.Location)
                 .Include(r => r.BloodGroup)
                 .Include(r => r.ComponentType)
@@ -162,6 +175,8 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Include(r => r.Location)
                 .Include(r => r.BloodGroup)
                 .Include(r => r.ComponentType)
@@ -175,6 +190,8 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Include(r => r.Location)
                 .Include(r => r.ConfirmedLocation)
                 .Where(r => r.RequestType == "StaffInitiated" && 
@@ -191,6 +208,8 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Include(r => r.Location)
                 .Include(r => r.BloodGroup)
                 .Include(r => r.ComponentType)
@@ -210,6 +229,8 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Where(r => r.ExpiresAt.HasValue && 
                            r.ExpiresAt < now && 
                            r.Status == "Pending" && 
@@ -222,6 +243,8 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Include(r => r.Location)
                 .Include(r => r.BloodGroup)
                 .Include(r => r.ComponentType)
@@ -239,6 +262,8 @@ namespace Repositories.Implementation
             var endOfDay = startOfDay.AddDays(1);
 
             return await _dbSet
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Where(r => (r.LocationId == locationId || r.ConfirmedLocationId == locationId) &&
                            ((r.PreferredDate >= startOfDay && r.PreferredDate < endOfDay) ||
                             (r.ConfirmedDate.HasValue && r.ConfirmedDate >= startOfDay && r.ConfirmedDate < endOfDay)) &&
@@ -357,6 +382,8 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(r => r.Donor)
                     .ThenInclude(d => d.User)
+                .Include(r => r.Donor)
+                    .ThenInclude(d => d.BloodGroup)
                 .Where(r => r.ExpiresAt.HasValue && 
                            r.ExpiresAt <= expiryThreshold && 
                            r.ExpiresAt > DateTimeOffset.UtcNow &&

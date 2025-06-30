@@ -1,4 +1,4 @@
-using BusinessObjects.Dtos;
+﻿using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
@@ -24,6 +24,26 @@ namespace Services.Implementation
         {
             _unitOfWork = unitOfWork;
             _jwtService = jwtService;
+        }
+
+        public async Task<ApiResponse<UserDto>> UpdateUserActivationAsync(Guid userId, bool isActivated)
+        {
+            try
+            {
+                var user = await _unitOfWork.Users.GetByIdAsync(userId);
+                if (user == null)
+                    return new ApiResponse<UserDto>(HttpStatusCode.NotFound, $"User with ID {userId} not found");
+
+                user.IsActivated = isActivated;
+                _unitOfWork.Users.Update(user);
+                await _unitOfWork.CompleteAsync();
+
+                return new ApiResponse<UserDto>(MapToDto(user), "User activation status updated successfully");
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<UserDto>(HttpStatusCode.InternalServerError, ex.Message);
+            }
         }
 
         public async Task<ApiResponse<UserDto>> RegisterStaffWithLocationAsync(RegisterStaffWithLocationDto dto)
@@ -70,6 +90,8 @@ namespace Services.Implementation
                 user.PhoneNumber = dto.PhoneNumber;
                 user.LastLogin = DateTimeOffset.UtcNow;
                 user.RoleId = role.Id;
+                user.CreatedTime = DateTimeOffset.UtcNow;
+                user.IsActivated = true; // default khi tạo mới
 
                 await _unitOfWork.Users.AddAsync(user);
                 await _unitOfWork.CompleteAsync();
@@ -114,7 +136,9 @@ namespace Services.Implementation
                 {
                     return new ApiResponse<IEnumerable<StaffWithLocationsDto>>(HttpStatusCode.BadRequest, "Staff role not found");
                 }
-                var staffUsers = await _unitOfWork.Users.GetUsersByRoleIdAsync(staffRole.Id);
+                var staffUsers = (await _unitOfWork.Users.GetUsersByRoleIdAsync(staffRole.Id))
+                    .OrderByDescending(u => u.CreatedTime)
+                    .ToList();
                 var result = new List<StaffWithLocationsDto>();
                 foreach (var staff in staffUsers)
                 {
@@ -161,7 +185,9 @@ namespace Services.Implementation
                 {
                     return new ApiResponse<IEnumerable<UserDto>>(HttpStatusCode.BadRequest, "Member role not found");
                 }
-                var members = await _unitOfWork.Users.GetUsersByRoleIdAsync(memberRole.Id);
+                var members = (await _unitOfWork.Users.GetUsersByRoleIdAsync(memberRole.Id))
+                    .OrderByDescending(u => u.CreatedTime)
+                    .ToList();
                 var memberDtos = members.Select(MapToDto).ToList();
                 return new ApiResponse<IEnumerable<UserDto>>(memberDtos, "Get member users successfully");
             }
@@ -260,7 +286,9 @@ namespace Services.Implementation
                     LastName = userDto.LastName,
                     PhoneNumber = userDto.PhoneNumber,
                     LastLogin = DateTimeOffset.UtcNow,
-                    RoleId = userDto.RoleId
+                    RoleId = userDto.RoleId,
+                    CreatedTime = DateTimeOffset.UtcNow,
+                    IsActivated = true // default khi tạo mới
                 };
 
                 await _unitOfWork.Users.AddAsync(user);
@@ -511,7 +539,9 @@ namespace Services.Implementation
                     LastName = registerDto.LastName,
                     PhoneNumber = registerDto.PhoneNumber,
                     LastLogin = DateTimeOffset.UtcNow,
-                    RoleId = role.Id  // Use the existing role ID from the database
+                    RoleId = role.Id,  // Use the existing role ID from the database
+                    CreatedTime = DateTimeOffset.UtcNow,
+                    IsActivated = true // default khi tạo mới
                 };
 
                 await _unitOfWork.Users.AddAsync(user);
@@ -606,7 +636,9 @@ namespace Services.Implementation
                 LastLogin = user.LastLogin,
                 RoleId = user.RoleId,
                 RoleName = user.Role?.RoleName ?? "Unknown",
-                IsEmailVerified = true
+                IsEmailVerified = true,
+                CreatedTime = user.CreatedTime,
+                IsActivated = user.IsActivated
             };
         }
 

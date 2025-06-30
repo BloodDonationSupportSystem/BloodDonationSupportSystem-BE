@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -22,7 +22,6 @@ namespace BusinessObjects.Dtos
         // Capacity information
         public List<LocationCapacityDto> Capacities { get; set; } = new();
         public List<LocationStaffAssignmentDto> StaffAssignments { get; set; } = new();
-        public List<LocationOperatingHoursDto> OperatingHours { get; set; } = new();
     }
 
     public class CreateLocationDto
@@ -173,56 +172,6 @@ namespace BusinessObjects.Dtos
         public string? Notes { get; set; }
     }
 
-    // LocationOperatingHours DTOs
-    public class LocationOperatingHoursDto
-    {
-        public Guid Id { get; set; }
-        public Guid LocationId { get; set; }
-        public DayOfWeek DayOfWeek { get; set; }
-        public string DayOfWeekName { get; set; } = string.Empty;
-        public TimeSpan MorningStartTime { get; set; }
-        public TimeSpan MorningEndTime { get; set; }
-        public TimeSpan AfternoonStartTime { get; set; }
-        public TimeSpan AfternoonEndTime { get; set; }
-        public TimeSpan? EveningStartTime { get; set; }
-        public TimeSpan? EveningEndTime { get; set; }
-        public bool IsClosed { get; set; }
-        public bool IsActive { get; set; }
-        public string? Notes { get; set; }
-    }
-
-    public class CreateLocationOperatingHoursDto
-    {
-        [Required(ErrorMessage = "Location ID is required")]
-        public Guid LocationId { get; set; }
-
-        [Required(ErrorMessage = "Day of week is required")]
-        [Range(0, 6, ErrorMessage = "Day of week must be between 0 (Sunday) and 6 (Saturday)")]
-        public DayOfWeek DayOfWeek { get; set; }
-
-        public TimeSpan MorningStartTime { get; set; } = new TimeSpan(8, 0, 0);
-        public TimeSpan MorningEndTime { get; set; } = new TimeSpan(12, 0, 0);
-        public TimeSpan AfternoonStartTime { get; set; } = new TimeSpan(13, 0, 0);
-        public TimeSpan AfternoonEndTime { get; set; } = new TimeSpan(17, 0, 0);
-        public TimeSpan? EveningStartTime { get; set; } = new TimeSpan(18, 0, 0);
-        public TimeSpan? EveningEndTime { get; set; } = new TimeSpan(21, 0, 0);
-        public bool IsClosed { get; set; } = false;
-        public string? Notes { get; set; }
-    }
-
-    public class UpdateLocationOperatingHoursDto
-    {
-        public TimeSpan MorningStartTime { get; set; } = new TimeSpan(8, 0, 0);
-        public TimeSpan MorningEndTime { get; set; } = new TimeSpan(12, 0, 0);
-        public TimeSpan AfternoonStartTime { get; set; } = new TimeSpan(13, 0, 0);
-        public TimeSpan AfternoonEndTime { get; set; } = new TimeSpan(17, 0, 0);
-        public TimeSpan? EveningStartTime { get; set; } = new TimeSpan(18, 0, 0);
-        public TimeSpan? EveningEndTime { get; set; } = new TimeSpan(21, 0, 0);
-        public bool IsClosed { get; set; } = false;
-        public bool IsActive { get; set; } = true;
-        public string? Notes { get; set; }
-    }
-
     // Enhanced AvailableTimeSlotsDto
     public class EnhancedAvailableTimeSlotsDto
     {
@@ -243,7 +192,19 @@ namespace BusinessObjects.Dtos
         public int TotalCapacity { get; set; }
         public int BookedCount { get; set; }
         public bool IsAvailable { get; set; }
-        public bool IsOpen { get; set; } // C� m? c?a trong khung gi? n�y kh�ng
+        public bool IsOpen { get; set; } // Có m? c?a trong khung gi? này không
         public string? UnavailableReason { get; set; }
+    }
+
+    public class CreateMultipleLocationCapacityDto
+    {
+        public Guid LocationId { get; set; }
+        public int TotalCapacity { get; set; }
+        public DayOfWeek StartDayOfWeek { get; set; } // Ví dụ: DayOfWeek.Monday
+        public DayOfWeek EndDayOfWeek { get; set; }   // Ví dụ: DayOfWeek.Saturday
+        public DateTimeOffset? EffectiveDate { get; set; }
+        public DateTimeOffset? ExpiryDate { get; set; }
+        public string? Notes { get; set; }
+        public bool IsActive { get; set; }
     }
 }

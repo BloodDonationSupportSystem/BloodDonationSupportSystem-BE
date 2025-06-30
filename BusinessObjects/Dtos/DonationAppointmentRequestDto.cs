@@ -67,6 +67,11 @@ namespace BusinessObjects.Dtos
         public DateTimeOffset CreatedTime { get; set; }
         public DateTimeOffset? LastUpdatedTime { get; set; }
         public DateTimeOffset? ExpiresAt { get; set; }
+        
+        // Additional Times
+        public DateTimeOffset? CheckInTime { get; set; }
+        public DateTimeOffset? CompletedTime { get; set; }
+        public DateTimeOffset? CancelledTime { get; set; }
     }
     
     /// <summary>
@@ -180,7 +185,14 @@ namespace BusinessObjects.Dtos
         public bool? IsUrgent { get; set; }
         public int? Priority { get; set; }
     }
-    
+
+    public class UpdateAppointmentStatusDto
+    {
+        public string Status { get; set; } = string.Empty;
+        public string? Note { get; set; }
+        public Guid? UpdatedByUserId { get; set; }
+    }
+
     /// <summary>
     /// Parameters for searching appointment requests
     /// </summary>

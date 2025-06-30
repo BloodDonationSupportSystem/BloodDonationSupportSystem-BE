@@ -10,7 +10,6 @@ namespace Repositories.Base
         ILocationRepository Locations { get; }
         ILocationCapacityRepository LocationCapacities { get; }
         ILocationStaffAssignmentRepository LocationStaffAssignments { get; }
-        ILocationOperatingHoursRepository LocationOperatingHours { get; }
         IBloodGroupRepository BloodGroups { get; }
         IComponentTypeRepository ComponentTypes { get; }
         IRoleRepository Roles { get; }

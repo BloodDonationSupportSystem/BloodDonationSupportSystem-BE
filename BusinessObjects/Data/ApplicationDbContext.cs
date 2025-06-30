@@ -21,7 +21,6 @@ namespace BusinessObjects.Data
         public DbSet<Location> Locations { get; set; }
         public DbSet<LocationCapacity> LocationCapacities { get; set; }
         public DbSet<LocationStaffAssignment> LocationStaffAssignments { get; set; }
-        public DbSet<LocationOperatingHours> LocationOperatingHours { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<BloodDonationWorkflow> BloodDonationWorkflows { get; set; }
@@ -263,13 +262,6 @@ namespace BusinessObjects.Data
                 .HasForeignKey(lsa => lsa.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // LocationOperatingHours relationships
-            modelBuilder.Entity<LocationOperatingHours>()
-                .HasOne(loh => loh.Location)
-                .WithMany()
-                .HasForeignKey(loh => loh.LocationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
             // Set up appropriate indices for frequently queried fields
             modelBuilder.Entity<BloodInventory>()
                 .HasIndex(bi => new { bi.BloodGroupId, bi.ComponentTypeId, bi.ExpirationDate, bi.Status });
@@ -341,10 +333,6 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<LocationStaffAssignment>()
                 .HasIndex(lsa => new { lsa.UserId, lsa.IsActive });
-
-            modelBuilder.Entity<LocationOperatingHours>()
-                .HasIndex(loh => new { loh.LocationId, loh.DayOfWeek })
-                .IsUnique();
 
             // Configure constraints and properties
             modelBuilder.Entity<BloodGroup>()

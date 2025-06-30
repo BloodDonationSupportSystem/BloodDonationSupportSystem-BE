@@ -1,4 +1,4 @@
-using AutoMapper;
+﻿using AutoMapper;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using Microsoft.Extensions.Logging;
@@ -35,6 +35,83 @@ namespace Services.Implementation
             _notificationService = notificationService;
         }
 
+        public async Task<ApiResponse<DonationAppointmentRequestDto>> UpdateAppointmentStatusAsync(Guid requestId, UpdateAppointmentStatusDto updateDto)
+        {
+            try
+            {
+                var request = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                if (request == null)
+                {
+                    return new ApiResponse<DonationAppointmentRequestDto>(
+                        HttpStatusCode.NotFound,
+                        "Appointment request not found");
+                }
+
+                // Update status
+                var statusUpdated = await _unitOfWork.DonationAppointmentRequests
+                    .UpdateStatusAsync(requestId, updateDto.Status, updateDto.UpdatedByUserId);
+
+                // Set timing fields based on status
+                if (updateDto.Status == "CheckedIn")
+                {
+                    request.CheckInTime = DateTimeOffset.UtcNow;
+                }
+                else if (updateDto.Status == "Completed")
+                {
+                    request.CompletedTime = DateTimeOffset.UtcNow;
+                }
+                else if (updateDto.Status == "Cancelled")
+                {
+                    request.CancelledTime = DateTimeOffset.UtcNow;
+                }
+
+                // Update note if applicable
+                if (!string.IsNullOrWhiteSpace(updateDto.Note))
+                {
+                    request.Notes = updateDto.Note;
+                    _unitOfWork.DonationAppointmentRequests.Update(request);
+                }
+
+                await _unitOfWork.CompleteAsync();
+
+                // Handle capacity based on status
+                if (updateDto.Status is "Approved" or "Accepted")
+                {
+                    // Decrease capacity
+                    await UpdateLocationCapacityAsync(
+                        request.LocationId,
+                        request.PreferredTimeSlot,
+                        request.PreferredDate,
+                        -1
+                    );
+                }
+                else if (updateDto.Status is "Rejected" or "Denied")
+                {
+                    // Increase capacity back
+                    await UpdateLocationCapacityAsync(
+                        request.LocationId,
+                        request.PreferredTimeSlot,
+                        request.PreferredDate,
+                        1
+                    );
+                }
+
+                var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
+
+                return new ApiResponse<DonationAppointmentRequestDto>(
+                    requestDto,
+                    "Appointment status updated successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while updating appointment status: {RequestId}", requestId);
+                return new ApiResponse<DonationAppointmentRequestDto>(
+                    HttpStatusCode.InternalServerError,
+                    "Error occurred while updating appointment status");
+            }
+        }
+
         public async Task<PagedApiResponse<DonationAppointmentRequestDto>> GetPagedAppointmentRequestsAsync(AppointmentRequestParameters parameters)
         {
             try
@@ -60,6 +137,29 @@ namespace Services.Implementation
                     StatusCode = HttpStatusCode.InternalServerError,
                     Message = "Error occurred while retrieving appointment requests"
                 };
+            }
+        }
+
+        private async Task UpdateLocationCapacityAsync(Guid locationId, string timeSlot, DateTimeOffset date, int delta)
+        {
+            // Lấy capacity theo location, timeSlot, ngày
+            var capacities = await _unitOfWork.LocationCapacities
+                .FindAsync(lc =>
+                    lc.LocationId == locationId
+                    && lc.TimeSlot == timeSlot
+                    && lc.IsActive
+                    && (lc.DayOfWeek == null || lc.DayOfWeek == date.DayOfWeek)
+                    && (lc.EffectiveDate == null || lc.EffectiveDate <= date)
+                    && (lc.ExpiryDate == null || lc.ExpiryDate >= date)
+                );
+
+            var capacity = capacities.FirstOrDefault();
+            if (capacity != null)
+            {
+                capacity.TotalCapacity += delta;
+                if (capacity.TotalCapacity < 0) capacity.TotalCapacity = 0;
+                _unitOfWork.LocationCapacities.Update(capacity);
+                await _unitOfWork.CompleteAsync();
             }
         }
 
@@ -272,8 +372,14 @@ namespace Services.Implementation
                     responseDto.Notes);
 
                 await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, "Approved", staffUserId);
+                
                 await _unitOfWork.CompleteAsync();
-
+                await UpdateLocationCapacityAsync(
+                    request.LocationId,
+                    request.PreferredTimeSlot,
+                    request.PreferredDate,
+                    -1 // giảm capacity
+                );
                 // Send notification to donor
                 await SendDonorNotificationAsync(requestId, "Your donation appointment request has been approved");
 
@@ -330,6 +436,15 @@ namespace Services.Implementation
                 var message = responseDto.Accepted 
                     ? "Donor has accepted the appointment assignment" 
                     : "Donor has rejected the appointment assignment";
+                if (responseDto.Accepted)
+                {
+                    await UpdateLocationCapacityAsync(
+                        request.LocationId,
+                        request.PreferredTimeSlot,
+                        request.PreferredDate,
+                        -1
+                    );
+                }
                 await SendStaffNotificationAsync(requestId, message);
 
                 var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
@@ -472,11 +587,172 @@ namespace Services.Implementation
 
         // Placeholder implementations for other required methods
         public Task<ApiResponse<DonationAppointmentRequestDto>> UpdateDonorAppointmentRequestAsync(Guid requestId, UpdateAppointmentRequestDto updateDto, Guid donorUserId) => throw new NotImplementedException();
-        public Task<ApiResponse> CancelDonorAppointmentRequestAsync(Guid requestId, Guid donorUserId) => throw new NotImplementedException();
         public Task<ApiResponse<DonationAppointmentRequestDto>> UpdateStaffAppointmentRequestAsync(Guid requestId, UpdateAppointmentRequestDto updateDto, Guid staffUserId) => throw new NotImplementedException();
-        public Task<ApiResponse<DonationAppointmentRequestDto>> RejectAppointmentRequestAsync(Guid requestId, StaffAppointmentResponseDto responseDto, Guid staffUserId) => throw new NotImplementedException();
+        public async Task<ApiResponse<DonationAppointmentRequestDto>> RejectAppointmentRequestAsync(Guid requestId, StaffAppointmentResponseDto responseDto, Guid staffUserId)
+        {
+            try
+            {
+                var request = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                if (request == null)
+                {
+                    return new ApiResponse<DonationAppointmentRequestDto>(
+                        HttpStatusCode.NotFound,
+                        "Appointment request not found");
+                }
+
+                if (request.Status != "Pending")
+                {
+                    return new ApiResponse<DonationAppointmentRequestDto>(
+                        HttpStatusCode.BadRequest,
+                        "Request is not in pending status");
+                }
+
+                // Update status to Rejected
+                await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, "Rejected", staffUserId);
+                await _unitOfWork.CompleteAsync();
+
+                // Tăng lại capacity
+                await UpdateLocationCapacityAsync(
+                    request.LocationId,
+                    request.PreferredTimeSlot,
+                    request.PreferredDate,
+                    1
+                );
+
+                // Send notification to donor
+                await SendDonorNotificationAsync(requestId, "Your donation appointment request has been rejected");
+
+                var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
+
+                return new ApiResponse<DonationAppointmentRequestDto>(
+                    requestDto,
+                    "Appointment request rejected successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while rejecting appointment request: {RequestId}", requestId);
+                return new ApiResponse<DonationAppointmentRequestDto>(
+                    HttpStatusCode.InternalServerError,
+                    "Error occurred while rejecting appointment request");
+            }
+        }
+
+        public async Task<ApiResponse<DonationAppointmentRequestDto>> RejectStaffAssignmentAsync(Guid requestId, DonorAppointmentResponseDto responseDto, Guid donorUserId)
+        {
+            try
+            {
+                var request = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                if (request == null)
+                {
+                    return new ApiResponse<DonationAppointmentRequestDto>(
+                        HttpStatusCode.NotFound,
+                        "Appointment request not found");
+                }
+
+                // Verify donor ownership
+                var donor = await _unitOfWork.DonorProfiles.GetByUserIdAsync(donorUserId);
+                if (donor == null || request.DonorId != donor.Id)
+                {
+                    return new ApiResponse<DonationAppointmentRequestDto>(
+                        HttpStatusCode.Forbidden,
+                        "You can only respond to your own appointment assignments");
+                }
+
+                if (request.RequestType != "StaffInitiated" || request.Status != "Pending")
+                {
+                    return new ApiResponse<DonationAppointmentRequestDto>(
+                        HttpStatusCode.BadRequest,
+                        "This request cannot be responded to");
+                }
+
+                // Update donor response to rejected
+                await _unitOfWork.DonationAppointmentRequests.UpdateDonorResponseAsync(
+                    requestId, false, responseDto.Notes);
+                await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, "Rejected", donorUserId);
+                await _unitOfWork.CompleteAsync();
+
+                // Tăng lại capacity
+                await UpdateLocationCapacityAsync(
+                    request.LocationId,
+                    request.PreferredTimeSlot,
+                    request.PreferredDate,
+                    1
+                );
+
+                // Send notification to staff
+                await SendStaffNotificationAsync(requestId, "Donor has rejected the appointment assignment");
+
+                var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
+
+                return new ApiResponse<DonationAppointmentRequestDto>(
+                    requestDto,
+                    "Staff assignment rejected successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while rejecting staff assignment: {RequestId}", requestId);
+                return new ApiResponse<DonationAppointmentRequestDto>(
+                    HttpStatusCode.InternalServerError,
+                    "Error occurred while rejecting staff assignment");
+            }
+        }
+
+        public async Task<ApiResponse> CancelDonorAppointmentRequestAsync(Guid requestId, Guid donorUserId)
+        {
+            try
+            {
+                var request = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                if (request == null)
+                {
+                    return new ApiResponse(
+                        HttpStatusCode.NotFound,
+                        "Appointment request not found");
+                }
+
+                // Verify donor ownership
+                var donor = await _unitOfWork.DonorProfiles.GetByUserIdAsync(donorUserId);
+                if (donor == null || request.DonorId != donor.Id)
+                {
+                    return new ApiResponse(
+                        HttpStatusCode.Forbidden,
+                        "You can only cancel your own appointment requests");
+                }
+
+                if (request.Status != "Pending" && request.Status != "Approved")
+                {
+                    return new ApiResponse(
+                        HttpStatusCode.BadRequest,
+                        "Only pending or approved requests can be cancelled");
+                }
+
+                // Update status to Cancelled
+                await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, "Cancelled", donorUserId);
+                await _unitOfWork.CompleteAsync();
+
+                // Tăng lại capacity
+                await UpdateLocationCapacityAsync(
+                    request.LocationId,
+                    request.PreferredTimeSlot,
+                    request.PreferredDate,
+                    1
+                );
+
+                // Send notification to staff
+                await SendStaffNotificationAsync(requestId, "Donor has cancelled the appointment request");
+
+                return new ApiResponse("Appointment request cancelled successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while cancelling appointment request: {RequestId}", requestId);
+                return new ApiResponse(
+                    HttpStatusCode.InternalServerError,
+                    "Error occurred while cancelling appointment request");
+            }
+        }
         public Task<ApiResponse<DonationAppointmentRequestDto>> ModifyAppointmentRequestAsync(Guid requestId, StaffAppointmentResponseDto responseDto, Guid staffUserId) => throw new NotImplementedException();
-        public Task<ApiResponse<DonationAppointmentRequestDto>> RejectStaffAssignmentAsync(Guid requestId, DonorAppointmentResponseDto responseDto, Guid donorUserId) => throw new NotImplementedException();
         public Task<ApiResponse<DonationAppointmentRequestDto>> ConvertToWorkflowAsync(Guid requestId, Guid staffUserId) => throw new NotImplementedException();
         public Task<ApiResponse> LinkToWorkflowAsync(Guid requestId, Guid workflowId) => throw new NotImplementedException();
         public Task<ApiResponse<IEnumerable<DonationAppointmentRequestDto>>> GetAppointmentsByLocationAndDateAsync(Guid locationId, DateTimeOffset date) => throw new NotImplementedException();

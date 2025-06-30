@@ -58,6 +58,16 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+        [HttpPatch("{id}/activation")]
+        [ProducesResponseType(typeof(ApiResponse<UserDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> UpdateUserActivation(Guid id, [FromQuery] bool isActivated)
+        {
+            var response = await _userService.UpdateUserActivationAsync(id, isActivated);
+            return HandleResponse(response);
+        }
+
         // GET: api/Users/username/{username}
         [HttpGet("username/{username}")]
         [Authorize(Roles = "Admin")]
@@ -83,6 +93,25 @@ namespace BloodDonationSupportSystem.Controllers
         {
             var response = await _userService.GetStaffUsersWithLocationsAsync();
             return HandleResponse(response);
+        }
+
+        // GET: api/Users/staff/{userId}
+        [HttpGet("staff/{userId}")]
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có th? xem thông tin staff theo userId
+        [ProducesResponseType(typeof(ApiResponse<StaffWithLocationsDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetStaffByUserId(Guid userId)
+        {
+            var staffListResponse = await _userService.GetStaffUsersWithLocationsAsync();
+            if (!staffListResponse.Success || staffListResponse.Data == null)
+                return HandleResponse(new ApiResponse(System.Net.HttpStatusCode.NotFound, "No staff found"));
+
+            var staff = staffListResponse.Data.FirstOrDefault(s => s.Staff != null && s.Staff.Id == userId);
+            if (staff == null)
+                return HandleResponse(new ApiResponse(System.Net.HttpStatusCode.NotFound, $"Staff with userId {userId} not found"));
+
+            return HandleResponse(new ApiResponse<StaffWithLocationsDto>(staff));
         }
 
         // GET: api/Users/members
