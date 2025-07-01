@@ -26,6 +26,11 @@ namespace BusinessObjects.Dtos
         public bool IsAvailableForEmergency { get; set; }
         public string PreferredDonationTime { get; set; }
         public double? DistanceKm { get; set; } // Added for distance-based search results
+        public bool? IsEligible { get; set; } // Indicates if donor is eligible to donate
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string PhoneNumber { get; set; }
+        public string Email { get; set; }
     }
 
     public class CreateDonorProfileDto
@@ -111,6 +116,11 @@ namespace BusinessObjects.Dtos
         [StringLength(50, ErrorMessage = "Preferred donation time cannot be longer than 50 characters")]
         [Display(Name = "Preferred donation time (e.g. Morning, Afternoon, Evening)")]
         public string PreferredDonationTime { get; set; }
+
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string PhoneNumber { get; set; }
+        public string Email { get; set; }
     }
 
     public class DonorProfileParameters : PaginationParameters

@@ -12,7 +12,11 @@ namespace BusinessObjects.Data
             // ========== DonorProfile mappings ==========
             CreateMap<DonorProfile, DonorProfileDto>()
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? src.User.UserName : null))
-                .ForMember(dest => dest.BloodGroupName, opt => opt.MapFrom(src => src.BloodGroup != null ? src.BloodGroup.GroupName : null));
+                .ForMember(dest => dest.BloodGroupName, opt => opt.MapFrom(src => src.BloodGroup != null ? src.BloodGroup.GroupName : null))
+                .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User != null ? src.User.FirstName : null))
+                .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User != null ? src.User.LastName : null))
+                .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User != null ? src.User.PhoneNumber : null))
+                .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User != null ? src.User.Email : null));
 
             CreateMap<CreateDonorProfileDto, DonorProfile>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
@@ -30,6 +34,7 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.UserId, opt => opt.Ignore())
                 .ForMember(dest => dest.User, opt => opt.Ignore())
                 .ForMember(dest => dest.BloodGroup, opt => opt.Ignore());
+            // Vi?c c?p nh?t User s? x? lý th? công trong service
 
             CreateMap<UpdateDonationAvailabilityDto, DonorProfile>()
                 .ForAllMembers(opt => opt.Condition((src, dest, srcMember) => srcMember != null));

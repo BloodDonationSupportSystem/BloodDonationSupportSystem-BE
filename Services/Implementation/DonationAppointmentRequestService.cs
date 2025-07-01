@@ -19,6 +19,7 @@ namespace Services.Implementation
         private readonly IMapper _mapper;
         private readonly ILogger<DonationAppointmentRequestService> _logger;
         private readonly INotificationService _notificationService;
+        private readonly IEmailService _emailService;
 
         // Default capacity per time slot per location
         private const int DefaultTimeSlotCapacity = 10;
@@ -27,12 +28,14 @@ namespace Services.Implementation
             IUnitOfWork unitOfWork,
             IMapper mapper,
             ILogger<DonationAppointmentRequestService> logger,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
             _notificationService = notificationService;
+            _emailService = emailService;
         }
 
         public async Task<ApiResponse<DonationAppointmentRequestDto>> UpdateAppointmentStatusAsync(Guid requestId, UpdateAppointmentStatusDto updateDto)
@@ -98,6 +101,10 @@ namespace Services.Implementation
 
                 var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
                 var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
+
+                // Send notification and email to donor
+                await SendDonorNotificationAsync(requestId, $"Your appointment status has been updated to: {updateDto.Status}");
+                await SendDonorEmailAsync(requestId, updateDto.Status, updateDto.Note);
 
                 return new ApiResponse<DonationAppointmentRequestDto>(
                     requestDto,
@@ -277,6 +284,9 @@ namespace Services.Implementation
                 // Send notification to staff
                 await SendStaffNotificationAsync(appointmentRequest.Id, "New donation appointment request received");
 
+                // Send confirmation email to donor
+                await SendDonorEmailAsync(appointmentRequest.Id, "Pending", "Your appointment request has been submitted and is pending review.");
+
                 var createdRequestDto = _mapper.Map<DonationAppointmentRequestDto>(appointmentRequest);
                 return new ApiResponse<DonationAppointmentRequestDto>(
                     createdRequestDto,
@@ -298,14 +308,25 @@ namespace Services.Implementation
         {
             try
             {
-                // Validate donor exists
+                // Try to validate donor exists by DonorId first
                 var donor = await _unitOfWork.DonorProfiles.GetByIdAsync(requestDto.DonorId);
+                
+                // If no donor found by ID, try to find by UserId (as the DonorId might actually be a UserId)
+                if (donor == null)
+                {
+                    donor = await _unitOfWork.DonorProfiles.GetByUserIdAsync(requestDto.DonorId);
+                }
+                
+                // If still no donor found, return not found
                 if (donor == null)
                 {
                     return new ApiResponse<DonationAppointmentRequestDto>(
                         HttpStatusCode.NotFound,
                         "Donor not found");
                 }
+
+                // Make sure we're using the correct donor ID
+                requestDto.DonorId = donor.Id;
 
                 // Validate location exists
                 var location = await _unitOfWork.Locations.GetByIdAsync(requestDto.LocationId);
@@ -326,6 +347,9 @@ namespace Services.Implementation
 
                 // Send notification to donor
                 await SendDonorNotificationAsync(appointmentRequest.Id, "You have been assigned a donation appointment");
+                
+                // Send email to donor
+                await SendDonorEmailAsync(appointmentRequest.Id, "Pending", "You have been assigned a donation appointment by our staff.");
 
                 var createdRequestDto = _mapper.Map<DonationAppointmentRequestDto>(appointmentRequest);
                 return new ApiResponse<DonationAppointmentRequestDto>(
@@ -380,8 +404,12 @@ namespace Services.Implementation
                     request.PreferredDate,
                     -1 // giảm capacity
                 );
+                
                 // Send notification to donor
                 await SendDonorNotificationAsync(requestId, "Your donation appointment request has been approved");
+                
+                // Send email to donor
+                await SendDonorEmailAsync(requestId, "Approved", responseDto.Notes);
 
                 var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
                 var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
@@ -430,12 +458,18 @@ namespace Services.Implementation
                 // Update donor response
                 await _unitOfWork.DonationAppointmentRequests.UpdateDonorResponseAsync(
                     requestId, responseDto.Accepted, responseDto.Notes);
+                
+                // Update status
+                var newStatus = responseDto.Accepted ? "Accepted" : "Rejected";
+                await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, newStatus, donorUserId);
+                
                 await _unitOfWork.CompleteAsync();
 
                 // Send notification to staff
                 var message = responseDto.Accepted 
                     ? "Donor has accepted the appointment assignment" 
                     : "Donor has rejected the appointment assignment";
+                
                 if (responseDto.Accepted)
                 {
                     await UpdateLocationCapacityAsync(
@@ -445,7 +479,11 @@ namespace Services.Implementation
                         -1
                     );
                 }
+                
                 await SendStaffNotificationAsync(requestId, message);
+                
+                // Send confirmation email to donor
+                await SendDonorEmailAsync(requestId, newStatus, responseDto.Notes);
 
                 var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
                 var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
@@ -609,6 +647,18 @@ namespace Services.Implementation
 
                 // Update status to Rejected
                 await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, "Rejected", staffUserId);
+                
+                // Update notes if provided
+                if (!string.IsNullOrEmpty(responseDto.Notes))
+                {
+                    await _unitOfWork.DonationAppointmentRequests.UpdateStaffResponseAsync(
+                        requestId, 
+                        request.PreferredDate, 
+                        request.PreferredTimeSlot, 
+                        request.LocationId, 
+                        responseDto.Notes);
+                }
+                
                 await _unitOfWork.CompleteAsync();
 
                 // Tăng lại capacity
@@ -621,6 +671,9 @@ namespace Services.Implementation
 
                 // Send notification to donor
                 await SendDonorNotificationAsync(requestId, "Your donation appointment request has been rejected");
+                
+                // Send email to donor
+                await SendDonorEmailAsync(requestId, "Rejected", responseDto.Notes);
 
                 var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
                 var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
@@ -682,6 +735,9 @@ namespace Services.Implementation
 
                 // Send notification to staff
                 await SendStaffNotificationAsync(requestId, "Donor has rejected the appointment assignment");
+                
+                // Send email to donor confirming rejection
+                await SendDonorEmailAsync(requestId, "Rejected", responseDto.Notes);
 
                 var updatedRequest = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
                 var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
@@ -741,6 +797,9 @@ namespace Services.Implementation
 
                 // Send notification to staff
                 await SendStaffNotificationAsync(requestId, "Donor has cancelled the appointment request");
+                
+                // Send email to donor confirming cancellation
+                await SendDonorEmailAsync(requestId, "Cancelled", "Your appointment has been cancelled as requested.");
 
                 return new ApiResponse("Appointment request cancelled successfully");
             }
@@ -784,6 +843,49 @@ namespace Services.Implementation
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending donor notification for request: {RequestId}", requestId);
+            }
+        }
+
+        private async Task SendDonorEmailAsync(Guid requestId, string status, string notes = null)
+        {
+            try
+            {
+                var request = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
+                if (request?.Donor?.User == null)
+                {
+                    _logger.LogWarning("Cannot send email: donor or user information is missing for request: {RequestId}", requestId);
+                    return;
+                }
+
+                var donorEmail = request.Donor.User.Email;
+                if (string.IsNullOrEmpty(donorEmail))
+                {
+                    _logger.LogWarning("Cannot send email: donor email is missing for request: {RequestId}", requestId);
+                    return;
+                }
+
+                var donorName = $"{request.Donor.User.FirstName} {request.Donor.User.LastName}";
+                
+                // Get location name
+                var location = await _unitOfWork.Locations.GetByIdAsync(request.LocationId);
+                var locationName = location?.Name ?? "Unknown Location";
+                
+                // Set confirmed or preferred date/time
+                var appointmentDate = request.ConfirmedDate ?? request.PreferredDate;
+                var appointmentTime = request.ConfirmedTimeSlot ?? request.PreferredTimeSlot;
+
+                await _emailService.SendAppointmentEmailAsync(
+                    donorEmail,
+                    donorName,
+                    appointmentDate,
+                    appointmentTime,
+                    locationName,
+                    status,
+                    notes);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending donor email for request: {RequestId}", requestId);
             }
         }
 
