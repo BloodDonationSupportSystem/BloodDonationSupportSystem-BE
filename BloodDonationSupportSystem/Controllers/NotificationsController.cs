@@ -159,6 +159,20 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+        // POST: api/Notifications/{id}/mark-read
+        [HttpPost("{id}/mark-read")]
+        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? ?ánh d?u thông báo là ?ã ??c
+        [ProducesResponseType(typeof(ApiResponse<NotificationDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> MarkNotificationAsRead(Guid id)
+        {
+            var response = await _notificationService.MarkNotificationAsReadAsync(id);
+            return HandleResponse(response);
+        }
+
         // DELETE: api/Notifications/5
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")] // Ch? Admin m?i có quy?n xóa thông báo

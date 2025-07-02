@@ -153,7 +153,8 @@ namespace BloodDonationSupportSystem.Controllers
             [FromQuery] double latitude, 
             [FromQuery] double longitude, 
             [FromQuery] double radiusKm = 10.0, 
-            [FromQuery] Guid? bloodGroupId = null)
+            [FromQuery] Guid? bloodGroupId = null,
+            [FromQuery] bool? isEligible = null)
         {
             if (radiusKm <= 0 || radiusKm > 500)
             {
@@ -162,7 +163,7 @@ namespace BloodDonationSupportSystem.Controllers
                     "Radius must be between 0.1 and 500 kilometers"));
             }
 
-            var response = await _donorProfileService.GetDonorsByDistanceAsync(latitude, longitude, radiusKm, bloodGroupId);
+            var response = await _donorProfileService.GetDonorsByDistanceAsync(latitude, longitude, radiusKm, bloodGroupId, isEligible);
             return HandleResponse(response);
         }
 

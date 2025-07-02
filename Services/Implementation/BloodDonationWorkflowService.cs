@@ -1,10 +1,11 @@
-using AutoMapper;
+Ôªøusing AutoMapper;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using Microsoft.Extensions.Logging;
 using Repositories.Base;
 using Repositories.Interface;
 using Services.Interface;
+using Shared.Constants;
 using Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -633,10 +634,10 @@ namespace Services.Implementation
                     
                     _unitOfWork.DonorProfiles.Update(donor);
                     
-                    // Ki?m tra c‡i ??t nh?c nh? c?a ng??i hi?n m·u
+                    // Ki·ªÉm tra c√†i ƒë·∫∑t nh·∫Øc nh·ªü c·ªßa ng∆∞·ªùi hi·∫øn m√°u
                     var reminderSettings = await _unitOfWork.DonorReminderSettings.GetByDonorProfileIdAsync(donor.Id);
                     
-                    // N?u ch?a cÛ c‡i ??t nh?c nh?, t?o c‡i ??t m?c ??nh
+                    // N·∫øu ch∆∞a c√≥ c√†i ƒë·∫∑t nh·∫Øc nh·ªü, t·∫°o c√†i ƒë·∫∑t m·∫∑c ƒë·ªãnh
                     if (reminderSettings == null && donor.UserId != Guid.Empty)
                     {
                         reminderSettings = new DonorReminderSettings
@@ -675,29 +676,27 @@ namespace Services.Implementation
                     });
                 }
                 
-                // Send notification
-                if (workflow.DonorId.HasValue)
+                // Send notifications
+                if (workflow.DonorId.HasValue && donor != null && donor.UserId != Guid.Empty)
                 {
-                    var donorProfile = await _unitOfWork.DonorProfiles.GetByIdAsync(workflow.DonorId.Value);
-                    if (donorProfile != null && donorProfile.UserId != Guid.Empty)
+                    // Send donation completion notification
+                    await _notificationService.CreateNotificationAsync(new CreateNotificationDto
                     {
-                        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
-                        {
-                            UserId = donorProfile.UserId,
-                            Type = "DonationCompleted",
-                            Message = $"Thank you for your blood donation of {completeDonationDto.QuantityDonated} units on {completeDonationDto.DonationDate.ToString("d")}. Your contribution is saving lives!"
-                        });
-                        
-                        // ThÍm thÙng b·o v? ng‡y cÛ th? hi?n m·u ti?p theo
-                        if (donorProfile.NextAvailableDonationDate.HasValue)
-                        {
-                            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
-                            {
-                                UserId = donorProfile.UserId,
-                                Type = "NextDonationDate",
-                                Message = $"B?n s? ?? ?i?u ki?n hi?n m·u ti?p theo v‡o ng‡y {donorProfile.NextAvailableDonationDate.Value.ToString("dd/MM/yyyy")}. Ch˙ng tÙi s? g?i nh?c nh? khi ??n th?i ?i?m ?Û."
-                            });
-                        }
+                        UserId = donor.UserId,
+                        Title = "Donation Completed",
+                        Type = NotificationTypes.DonationCompleted,
+                        Message = $"Thank you for your blood donation of {completeDonationDto.QuantityDonated} units on {completeDonationDto.DonationDate.ToString("d")}. Your contribution is saving lives!"
+                    });
+                    
+                    // Send rest reminder notification
+                    await _notificationService.CreateDonorRestReminderAsync(donor.UserId, completeDonationDto.DonationDate);
+                    
+                    // Send next donation date notification
+                    if (donor.NextAvailableDonationDate.HasValue)
+                    {
+                        await _notificationService.CreateNextDonationDateReminderAsync(
+                            donor.UserId, 
+                            donor.NextAvailableDonationDate.Value);
                     }
                 }
                 

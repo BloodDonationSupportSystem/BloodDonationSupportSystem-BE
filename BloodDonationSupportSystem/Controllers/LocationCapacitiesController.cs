@@ -91,13 +91,25 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
-        //[HttpPost("multiple")]
-        //[Authorize(Roles = "Admin,Staff")]
-        //public async Task<IActionResult> CreateMultiple([FromBody] CreateMultipleLocationCapacityDto dto)
-        //{
-        //    var response = await _locationCapacityService.CreateMultipleAsync(dto);
-        //    return HandleResponse(response);
-        //}
+        // POST: api/locations/{locationId}/capacities/bulk
+        [HttpPost("bulk")]
+        [Authorize(Roles = "Admin,Staff")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<LocationCapacityDto>>), 201)]
+        [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> CreateMultipleCapacities(Guid locationId, [FromBody] CreateMultipleLocationCapacityDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResponse(HandleValidationErrors<IEnumerable<LocationCapacityDto>>(ModelState));
+            }
+            
+            // Ensure the locationId from route matches the DTO
+            dto.LocationId = locationId;
+            
+            var response = await _locationCapacityService.CreateMultipleAsync(dto);
+            return HandleResponse(response);
+        }
 
         // DELETE: api/locations/{locationId}/capacities/{id}
         [HttpDelete("{id}")]

@@ -123,20 +123,73 @@ namespace BusinessObjects.Dtos
         public string Email { get; set; }
     }
 
+    /// <summary>
+    /// Parameters for filtering, sorting, and paging donor profiles.
+    /// All parameters are nullable to allow for fetching all donor profiles by default.
+    /// </summary>
     public class DonorProfileParameters : PaginationParameters
     {
-        public string BloodGroup { get; set; }
-        public string HealthStatus { get; set; }
+        /// <summary>
+        /// Filter by blood group name. Null to include all blood groups.
+        /// </summary>
+        public string? BloodGroup { get; set; }
+        
+        /// <summary>
+        /// Filter by health status. Null to include all health statuses.
+        /// </summary>
+        public string? HealthStatus { get; set; }
+        
+        /// <summary>
+        /// Filter by minimum number of donations. Null to include all donors regardless of donation count.
+        /// </summary>
         public int? MinimumDonations { get; set; }
+        
+        /// <summary>
+        /// Filter by availability now. Null to include all donors regardless of current availability.
+        /// </summary>
         public bool? IsAvailableNow { get; set; }
+        
+        /// <summary>
+        /// Filter by emergency availability. Null to include all donors regardless of emergency availability.
+        /// </summary>
         public bool? IsAvailableForEmergency { get; set; }
+        
+        /// <summary>
+        /// Filter by availability after a specified date. Null to include all donors regardless of future availability.
+        /// </summary>
         public DateTimeOffset? AvailableAfter { get; set; }
+        
+        /// <summary>
+        /// Filter by availability before a specified date. Null to include all donors regardless of past availability.
+        /// </summary>
         public DateTimeOffset? AvailableBefore { get; set; }
-        public string PreferredDonationTime { get; set; }
+        
+        /// <summary>
+        /// Filter by preferred donation time. Null to include all preferred donation times.
+        /// </summary>
+        public string? PreferredDonationTime { get; set; }
+        
+        /// <summary>
+        /// Filter by eligibility status. If true, only show donors who are eligible to donate.
+        /// If false, only show donors who are not eligible. If null, show all donors regardless of eligibility.
+        /// Note: This filter is applied in memory after database query, as eligibility is determined at runtime.
+        /// </summary>
+        public bool? IsEligible { get; set; }
         
         // Location-based search parameters
+        /// <summary>
+        /// Filter by latitude for location-based searches. Used with Longitude and RadiusKm.
+        /// </summary>
         public double? Latitude { get; set; }
+        
+        /// <summary>
+        /// Filter by longitude for location-based searches. Used with Latitude and RadiusKm.
+        /// </summary>
         public double? Longitude { get; set; }
+        
+        /// <summary>
+        /// Filter by radius in kilometers for location-based searches. Used with Latitude and Longitude.
+        /// </summary>
         public double? RadiusKm { get; set; }
     }
 
