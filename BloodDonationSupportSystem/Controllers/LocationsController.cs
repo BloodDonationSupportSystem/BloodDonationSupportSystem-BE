@@ -44,6 +44,20 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+        // GET: api/Locations/user/{userId}
+        [HttpGet("user/{userId}")]
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n xem thông tin ??a ?i?m theo user ID
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<LocationDto>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetLocationsByUserId(Guid userId)
+        {
+            var response = await _locationService.GetLocationsByUserIdAsync(userId);
+            return HandleResponse(response);
+        }
+
         // POST: api/Locations
         [HttpPost]
         [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n t?o ??a ?i?m m?i

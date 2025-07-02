@@ -31,7 +31,10 @@ namespace Shared.Constants
         public const string WalkInDonation = "WalkInDonation";
         public const string DonationProcessUpdate = "DonationProcessUpdate";
         public const string DonationEligibilityCheck = "DonationEligibilityCheck";
-        
+        public const string DonationCheckIn = "DonationCheckIn";
+        public const string DonationProcessing = "DonationProcessing";
+
+
         // Health check related notifications
         public const string HealthCheckPassed = "HealthCheckPassed";
         public const string HealthCheckFailed = "HealthCheckFailed";

@@ -103,7 +103,7 @@ namespace Services.Implementation
                 var requestDto = _mapper.Map<DonationAppointmentRequestDto>(updatedRequest);
 
                 // Send notification and email to donor
-                await SendDonorNotificationAsync(requestId, $"Your appointment status has been updated to: {updateDto.Status}");
+                await SendDonorNotificationAsync(requestId, $"Your appointment has been {updateDto.Status.ToLower()}");
                 await SendDonorEmailAsync(requestId, updateDto.Status, updateDto.Note);
 
                 return new ApiResponse<DonationAppointmentRequestDto>(
@@ -283,7 +283,7 @@ namespace Services.Implementation
 
                 // Send notification to staff
                 await SendStaffNotificationAsync(appointmentRequest.Id, "New donation appointment request received");
-
+                await SendDonorNotificationAsync(appointmentRequest.Id, "Your appointment request has been submitted and is pending review.");
                 // Send confirmation email to donor
                 await SendDonorEmailAsync(appointmentRequest.Id, "Pending", "Your appointment request has been submitted and is pending review.");
 
@@ -829,15 +829,49 @@ namespace Services.Implementation
                 var request = await _unitOfWork.DonationAppointmentRequests.GetByIdWithDetailsAsync(requestId);
                 if (request?.Donor?.User != null)
                 {
-                    var notificationDto = new CreateNotificationDto
-                    {
-                        UserId = request.Donor.User.Id,
-                        Title = "Donation Appointment Update",
-                        Message = message,
-                        Type = "AppointmentUpdate"
-                    };
+                    // Get additional details needed for a comprehensive notification
+                    var location = await _unitOfWork.Locations.GetByIdAsync(request.LocationId);
+                    var locationName = location?.Name ?? "Unknown Location";
 
-                    await _notificationService.CreateNotificationAsync(notificationDto);
+                    // Use the appropriate date (confirmed or preferred)
+                    var appointmentDate = request.ConfirmedDate ?? request.PreferredDate;
+
+                    // Map the appointment to DTO for the detailed notification
+                    var appointmentDto = _mapper.Map<DonationAppointmentRequestDto>(request);
+
+                    // Determine appropriate notification type based on the status
+                    var status = request.Status;
+                    string additionalInfo = request.Notes;
+
+                    if (status.ToLower() == "checkedin")
+                    {
+                        // For check-in, use the appointment notification to include check-in time
+                        await _notificationService.CreateAppointmentNotificationAsync(
+                            request.Donor.User.Id,
+                            request.Id,
+                            status,
+                            appointmentDate,
+                            locationName
+                        );
+                    }
+                    else
+                    {
+                        // For all other statuses, use the detailed notification which includes
+                        // full appointment information, blood group, component type, etc.
+                        await _notificationService.CreateDetailedAppointmentNotificationAsync(
+                            request.Donor.User.Id,
+                            appointmentDto,
+                            status,
+                            additionalInfo
+                        );
+                    }
+
+                    _logger.LogInformation("Detailed appointment notification sent to user {UserId} for request {RequestId}. Status: {Status}",
+                        request.Donor.User.Id, requestId, status);
+                }
+                else
+                {
+                    _logger.LogWarning("Cannot send notification: donor details not found for request {RequestId}", requestId);
                 }
             }
             catch (Exception ex)

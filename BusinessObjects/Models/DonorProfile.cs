@@ -15,7 +15,7 @@ namespace BusinessObjects.Models
         public string HealthStatus { get; set; } = string.Empty;
         public DateTimeOffset LastHealthCheckDate { get; set; } = DateTimeOffset.UtcNow;
         public int TotalDonations { get; set; }
-        public string Address { get; set; } = string.Empty;
+        public string? Address { get; set; } // Made nullable
         public string Latitude { get; set; } = string.Empty;
         public string Longitude { get; set; } = string.Empty;
 

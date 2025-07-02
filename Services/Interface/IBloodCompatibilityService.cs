@@ -8,19 +8,32 @@ namespace Services.Interface
 {
     public interface IBloodCompatibilityService
     {
-        // Get compatible blood groups for whole blood transfusion
-        Task<ApiResponse<IEnumerable<BloodGroupDto>>> GetCompatibleBloodGroupsForWholeBloodAsync(Guid bloodGroupId);
+        /// <summary>
+        /// Gets all compatible blood groups for a recipient with the specified blood group
+        /// </summary>
+        /// <param name="recipientBloodGroupId">The blood group ID of the recipient</param>
+        /// <returns>A list of compatible blood groups for whole blood transfusion</returns>
+        Task<ApiResponse<IEnumerable<BloodGroupDto>>> GetCompatibleWholeBloodGroupsAsync(Guid recipientBloodGroupId);
         
-        // Get compatible blood groups for specific component transfusion
-        Task<ApiResponse<IEnumerable<BloodGroupDto>>> GetCompatibleBloodGroupsForComponentAsync(Guid bloodGroupId, Guid componentTypeId);
+        /// <summary>
+        /// Gets all compatible blood groups for a specific blood component
+        /// </summary>
+        /// <param name="recipientBloodGroupId">The blood group ID of the recipient</param>
+        /// <param name="componentTypeId">The component type ID</param>
+        /// <returns>A list of compatible blood groups for the specified component</returns>
+        Task<ApiResponse<IEnumerable<BloodGroupDto>>> GetCompatibleComponentBloodGroupsAsync(Guid recipientBloodGroupId, Guid componentTypeId);
         
-        // Get compatible donors for whole blood transfusion
-        Task<ApiResponse<IEnumerable<DonorProfileDto>>> GetCompatibleDonorsForWholeBloodAsync(Guid bloodGroupId, bool? emergencyOnly = false);
+        /// <summary>
+        /// Gets detailed compatibility information for all blood groups
+        /// </summary>
+        /// <returns>A list of blood group compatibility details</returns>
+        Task<ApiResponse<IEnumerable<BloodGroupCompatibilityDto>>> GetBloodGroupCompatibilityMatrixAsync();
         
-        // Get compatible donors for specific component transfusion
-        Task<ApiResponse<IEnumerable<DonorProfileDto>>> GetCompatibleDonorsForComponentAsync(Guid bloodGroupId, Guid componentTypeId, bool? emergencyOnly = false);
-        
-        // Get compatible donor blood group IDs for a specific recipient blood group
+        /// <summary>
+        /// Gets compatible donor blood group IDs for a specific recipient blood group
+        /// </summary>
+        /// <param name="recipientBloodGroupId">The blood group ID of the recipient</param>
+        /// <returns>A list of compatible donor blood group IDs</returns>
         Task<ApiResponse<IEnumerable<Guid>>> GetCompatibleDonorBloodGroupsAsync(Guid recipientBloodGroupId);
     }
 }

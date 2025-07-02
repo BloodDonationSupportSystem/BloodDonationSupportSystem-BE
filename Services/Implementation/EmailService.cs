@@ -35,6 +35,13 @@ namespace Services.Implementation
         {
             try
             {
+                // Validate email settings
+                if (string.IsNullOrEmpty(_emailSettings.Host))
+                {
+                    _logger.LogError("SMTP host is not configured");
+                    return false;
+                }
+
                 var message = new MailMessage
                 {
                     From = new MailAddress(_emailSettings.SenderEmail, _emailSettings.SenderName),
@@ -48,16 +55,21 @@ namespace Services.Implementation
                 using var client = new SmtpClient(_emailSettings.Host, _emailSettings.Port)
                 {
                     Credentials = new NetworkCredential(_emailSettings.Username, _emailSettings.Password),
-                    EnableSsl = true
+                    EnableSsl = true,
+                    Timeout = 30000 // Set timeout to 30 seconds
                 };
 
+                _logger.LogInformation("Attempting to send email to {Recipient} using SMTP server {Host}:{Port}", 
+                    to, _emailSettings.Host, _emailSettings.Port);
+                
                 await client.SendMailAsync(message);
                 _logger.LogInformation("Email sent successfully to {Recipient}", to);
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send email to {Recipient}", to);
+                _logger.LogError(ex, "Failed to send email to {Recipient}. SMTP settings: Host={Host}, Port={Port}", 
+                    to, _emailSettings.Host, _emailSettings.Port);
                 return false;
             }
         }
@@ -66,6 +78,13 @@ namespace Services.Implementation
         {
             try
             {
+                // Validate email settings
+                if (string.IsNullOrEmpty(_emailSettings.Host))
+                {
+                    _logger.LogError("SMTP host is not configured");
+                    return false;
+                }
+
                 var message = new MailMessage
                 {
                     From = new MailAddress(_emailSettings.SenderEmail, _emailSettings.SenderName),
@@ -82,16 +101,21 @@ namespace Services.Implementation
                 using var client = new SmtpClient(_emailSettings.Host, _emailSettings.Port)
                 {
                     Credentials = new NetworkCredential(_emailSettings.Username, _emailSettings.Password),
-                    EnableSsl = true
+                    EnableSsl = true,
+                    Timeout = 30000 // Set timeout to 30 seconds
                 };
 
+                _logger.LogInformation("Attempting to send email to {RecipientCount} recipients using SMTP server {Host}:{Port}", 
+                    toAddresses.Count, _emailSettings.Host, _emailSettings.Port);
+                
                 await client.SendMailAsync(message);
                 _logger.LogInformation("Email sent successfully to {RecipientCount} recipients", toAddresses.Count);
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send email to multiple recipients");
+                _logger.LogError(ex, "Failed to send email to multiple recipients. SMTP settings: Host={Host}, Port={Port}",
+                    _emailSettings.Host, _emailSettings.Port);
                 return false;
             }
         }
@@ -158,12 +182,66 @@ namespace Services.Implementation
                 bodyBuilder.AppendLine("</html>");
 
                 string body = bodyBuilder.ToString();
+                
+                _logger.LogInformation("Preparing to send appointment email to donor {DonorName} <{DonorEmail}>", donorName, donorEmail);
                 return await SendEmailAsync(donorEmail, subject, body);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send appointment email to {DonorEmail}", donorEmail);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Sends a test email to verify SMTP settings
+        /// </summary>
+        /// <param name="to">Email address to send the test to</param>
+        /// <returns>True if successful, with diagnostic information</returns>
+        public async Task<(bool success, string message)> SendTestEmailAsync(string to)
+        {
+            try
+            {
+                // Log the current email settings
+                _logger.LogInformation("Testing email with settings: Host={Host}, Port={Port}, Username={Username}, SenderEmail={SenderEmail}",
+                    _emailSettings.Host, _emailSettings.Port, _emailSettings.Username, _emailSettings.SenderEmail);
+                
+                if (string.IsNullOrEmpty(_emailSettings.Host))
+                {
+                    return (false, "SMTP host is not configured");
+                }
+
+                if (string.IsNullOrEmpty(to) || !to.Contains("@"))
+                {
+                    return (false, "Invalid recipient email address");
+                }
+
+                var subject = "Test Email from Blood Donation Support System";
+                var body = @"
+                    <html>
+                    <body>
+                        <h2>Test Email</h2>
+                        <p>This is a test email from Blood Donation Support System.</p>
+                        <p>If you received this email, it means the email sending functionality is working correctly.</p>
+                        <p>Sent at: " + DateTime.Now.ToString() + @"</p>
+                    </body>
+                    </html>";
+
+                var result = await SendEmailAsync(to, subject, body);
+                
+                if (result)
+                {
+                    return (true, "Test email sent successfully");
+                }
+                else
+                {
+                    return (false, "Failed to send test email. Check logs for more details.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending test email to {Recipient}", to);
+                return (false, $"Error: {ex.Message}");
             }
         }
 

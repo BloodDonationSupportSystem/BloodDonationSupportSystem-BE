@@ -43,5 +43,12 @@ namespace Services.Interface
             string location,
             string status,
             string notes = null);
+
+        /// <summary>
+        /// G?i email th? nghi?m ?? ki?m tra c?u hình SMTP
+        /// </summary>
+        /// <param name="to">??a ch? email ng??i nh?n</param>
+        /// <returns>Tuple g?m tr?ng thái thành công và thông ?i?p ch?n ?oán</returns>
+        Task<(bool success, string message)> SendTestEmailAsync(string to);
     }
 }

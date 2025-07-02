@@ -47,6 +47,16 @@ namespace BusinessObjects.Data
             CreateMap<UpdateBloodGroupDto, BloodGroup>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore());
 
+            // ========== BloodGroupCompatibility mappings ==========
+            CreateMap<BloodGroup, BloodGroupInfoDto>()
+                .ForMember(dest => dest.BloodGroupId, opt => opt.MapFrom(src => src.Id))
+                .ForMember(dest => dest.BloodGroupName, opt => opt.MapFrom(src => src.GroupName));
+
+            CreateMap<ComponentType, ComponentCompatibilityDto>()
+                .ForMember(dest => dest.ComponentTypeId, opt => opt.MapFrom(src => src.Id))
+                .ForMember(dest => dest.ComponentTypeName, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.CompatibleDonors, opt => opt.Ignore());
+
             // ========== User mappings ==========
             CreateMap<User, UserDto>()
                 .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role != null ? src.Role.RoleName : null));

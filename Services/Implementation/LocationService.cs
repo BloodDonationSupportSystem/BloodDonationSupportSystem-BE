@@ -55,6 +55,46 @@ namespace Services.Implementation
             }
         }
 
+        public async Task<ApiResponse<IEnumerable<LocationDto>>> GetLocationsByUserIdAsync(Guid userId)
+        {
+            try
+            {
+                // Get the staff assignments for the given user
+                var assignments = await _unitOfWork.LocationStaffAssignments.GetByUserIdAsync(userId);
+                
+                if (assignments == null || !assignments.Any())
+                {
+                    return new ApiResponse<IEnumerable<LocationDto>>(
+                        HttpStatusCode.NotFound, 
+                        $"No locations found for user with ID {userId}");
+                }
+                
+                // Extract the location IDs and get the location details
+                var locationIds = assignments.Select(a => a.LocationId).ToList();
+                var locations = new List<Location>();
+                
+                foreach (var locationId in locationIds)
+                {
+                    var location = await _unitOfWork.Locations.GetByIdAsync(locationId);
+                    if (location != null)
+                    {
+                        locations.Add(location);
+                    }
+                }
+                
+                var locationDtos = locations.Select(MapToDto).ToList();
+                
+                return new ApiResponse<IEnumerable<LocationDto>>(locationDtos)
+                {
+                    Message = $"Retrieved {locationDtos.Count} locations for user ID {userId} successfully"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<IEnumerable<LocationDto>>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<LocationDto>> CreateLocationAsync(CreateLocationDto locationDto)
         {
             try
