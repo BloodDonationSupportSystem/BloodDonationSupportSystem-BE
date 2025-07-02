@@ -33,14 +33,28 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
-        // GET: api/BloodInventories/5
+        // Existing endpoint enhancement
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n xem chi ti?t kho máu
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<BloodInventoryDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetBloodInventory(int id)
         {
+            var response = await _bloodInventoryService.GetBloodInventoryByIdAsync(id);
+            return HandleResponse(response);
+        }
+
+        // Add a specialized endpoint that emphasizes the presence of donation event data
+        [HttpGet("{id}/with-donation-details")]
+        [Authorize(Roles = "Admin,Staff")]
+        [ProducesResponseType(typeof(ApiResponse<BloodInventoryDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 404)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetBloodInventoryWithDonationDetails(int id)
+        {
+            // This endpoint returns the same data as GetBloodInventory, but the URL clearly
+            // indicates to API consumers that donation event details are included
             var response = await _bloodInventoryService.GetBloodInventoryByIdAsync(id);
             return HandleResponse(response);
         }

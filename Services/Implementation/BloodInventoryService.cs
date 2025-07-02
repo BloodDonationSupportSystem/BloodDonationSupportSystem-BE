@@ -238,7 +238,8 @@ namespace Services.Implementation
                 donorName = $"{user.FirstName} {user.LastName}";
             }
 
-            return new BloodInventoryDto
+            // Create the main DTO
+            var inventoryDto = new BloodInventoryDto
             {
                 Id = bloodInventory.Id,
                 QuantityUnits = bloodInventory.QuantityUnits,
@@ -252,6 +253,32 @@ namespace Services.Implementation
                 DonationEventId = bloodInventory.DonationEventId,
                 DonorName = donorName
             };
+
+            // Add detailed donation event information if available
+            if (bloodInventory.DonationEvent != null)
+            {
+                var donationEvent = bloodInventory.DonationEvent;
+                var donorProfile = donationEvent.DonorProfile;
+                var user = donorProfile?.User;
+                
+                inventoryDto.DonationEvent = new DonationEventInfoDto
+                {
+                    Id = donationEvent.Id,
+                    DonorId = donationEvent.DonorId,
+                    DonorName = user != null ? $"{user.FirstName} {user.LastName}" : "",
+                    DonorPhone = user?.PhoneNumber ?? "",
+                    DonationDate = donationEvent.DonationDate,
+                    QuantityDonated = donationEvent.QuantityDonated,
+                    QuantityUnits = donationEvent.QuantityUnits,
+                    IsUsable = donationEvent.IsUsable,
+                    LocationId = donationEvent.LocationId,
+                    LocationName = donationEvent.Location?.Name ?? "",
+                    CreatedTime = donationEvent.CreatedTime,
+                    CompletedTime = donationEvent.CompletedTime
+                };
+            }
+
+            return inventoryDto;
         }
     }
 }

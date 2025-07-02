@@ -17,6 +17,11 @@ namespace BusinessObjects.Dtos
         public string DonorEmail { get; set; } = string.Empty;
         public string DonorPhone { get; set; } = string.Empty;
         
+        // Donor Donation History Information
+        public int TotalDonations { get; set; }
+        public DateTimeOffset? LastDonationDate { get; set; }
+        public DateTimeOffset? NextEligibleDonationDate { get; set; }
+        
         // Requested Details
         public DateTimeOffset PreferredDate { get; set; }
         public string PreferredTimeSlot { get; set; } = string.Empty;

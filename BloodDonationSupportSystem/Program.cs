@@ -135,10 +135,6 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 // RefreshToken
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
-// BloodDonationWorkflow
-builder.Services.AddScoped<IBloodDonationWorkflowRepository, BloodDonationWorkflowRepository>();
-builder.Services.AddScoped<IBloodDonationWorkflowService, BloodDonationWorkflowService>();
-
 // Donation Reminder Service
 builder.Services.AddScoped<IDonationReminderService, DonationReminderService>();
 builder.Services.AddScoped<IDonorReminderSettingsRepository, DonorReminderSettingsRepository>();

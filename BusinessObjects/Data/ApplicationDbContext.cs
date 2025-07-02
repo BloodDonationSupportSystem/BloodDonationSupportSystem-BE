@@ -23,7 +23,6 @@ namespace BusinessObjects.Data
         public DbSet<LocationStaffAssignment> LocationStaffAssignments { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
-        public DbSet<BloodDonationWorkflow> BloodDonationWorkflows { get; set; }
         public DbSet<DonorReminderSettings> DonorReminderSettings { get; set; }
         public DbSet<DonationAppointmentRequest> DonationAppointmentRequests { get; set; }
 
@@ -161,31 +160,6 @@ namespace BusinessObjects.Data
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // BloodDonationWorkflow relationships
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasOne(w => w.BloodGroup)
-                .WithMany()
-                .HasForeignKey(w => w.BloodGroupId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasOne(w => w.ComponentType)
-                .WithMany()
-                .HasForeignKey(w => w.ComponentTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasOne(w => w.Donor)
-                .WithMany()
-                .HasForeignKey(w => w.DonorId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasOne(w => w.Inventory)
-                .WithMany()
-                .HasForeignKey(w => w.InventoryId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             // DonorReminderSettings relationships
             modelBuilder.Entity<DonorReminderSettings>()
                 .HasOne(drs => drs.DonorProfile)
@@ -236,12 +210,6 @@ namespace BusinessObjects.Data
                 .HasForeignKey(dar => dar.ConfirmedLocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<DonationAppointmentRequest>()
-                .HasOne(dar => dar.Workflow)
-                .WithMany()
-                .HasForeignKey(dar => dar.WorkflowId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             // LocationCapacity relationships
             modelBuilder.Entity<LocationCapacity>()
                 .HasOne(lc => lc.Location)
@@ -283,19 +251,6 @@ namespace BusinessObjects.Data
             modelBuilder.Entity<RefreshToken>()
                 .HasIndex(rt => rt.Token)
                 .IsUnique();
-
-            // Add indices for BloodDonationWorkflow
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasIndex(w => w.RequestId);
-
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasIndex(w => new { w.Status, w.IsActive });
-
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasIndex(w => w.DonorId);
-
-            modelBuilder.Entity<BloodDonationWorkflow>()
-                .HasIndex(w => new { w.BloodGroupId, w.ComponentTypeId });
 
             // Add indices for DonorReminderSettings
             modelBuilder.Entity<DonorReminderSettings>()

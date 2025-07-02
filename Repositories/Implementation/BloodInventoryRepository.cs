@@ -25,6 +25,8 @@ namespace Repositories.Implementation
                 .Include(bi => bi.DonationEvent)
                     .ThenInclude(de => de.DonorProfile)
                         .ThenInclude(dp => dp.User)
+                .Include(bi => bi.DonationEvent)
+                    .ThenInclude(de => de.Location)
                 .FirstOrDefaultAsync(bi => bi.Id == id);
         }
 
@@ -35,7 +37,9 @@ namespace Repositories.Implementation
                 .Include(bi => bi.ComponentType)
                 .Include(bi => bi.DonationEvent)
                     .ThenInclude(de => de.DonorProfile)
-                        .ThenInclude(dp => dp.User);
+                        .ThenInclude(dp => dp.User)
+                .Include(bi => bi.DonationEvent)
+                    .ThenInclude(de => de.Location);
 
             // Apply filters
             if (!string.IsNullOrEmpty(parameters.Status))
@@ -97,6 +101,11 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(bi => bi.BloodGroup)
                 .Include(bi => bi.ComponentType)
+                .Include(bi => bi.DonationEvent)
+                    .ThenInclude(de => de.DonorProfile)
+                        .ThenInclude(dp => dp.User)
+                .Include(bi => bi.DonationEvent)
+                    .ThenInclude(de => de.Location)
                 .Where(bi => bi.ExpirationDate < now && bi.Status == "Available")
                 .ToListAsync();
         }
@@ -106,6 +115,11 @@ namespace Repositories.Implementation
             return await _dbSet
                 .Include(bi => bi.BloodGroup)
                 .Include(bi => bi.ComponentType)
+                .Include(bi => bi.DonationEvent)
+                    .ThenInclude(de => de.DonorProfile)
+                        .ThenInclude(dp => dp.User)
+                .Include(bi => bi.DonationEvent)
+                    .ThenInclude(de => de.Location)
                 .Where(bi => bi.BloodGroupId == bloodGroupId && 
                              bi.ComponentTypeId == componentTypeId && 
                              bi.Status == "Available" && 
@@ -155,6 +169,10 @@ namespace Repositories.Implementation
                 "componenttype" => parameters.SortAscending
                     ? query.OrderBy(bi => bi.ComponentType.Name)
                     : query.OrderByDescending(bi => bi.ComponentType.Name),
+                
+                "donationdate" => parameters.SortAscending
+                    ? query.OrderBy(bi => bi.DonationEvent.DonationDate)
+                    : query.OrderByDescending(bi => bi.DonationEvent.DonationDate),
                 
                 _ => parameters.SortAscending
                     ? query.OrderBy(bi => bi.ExpirationDate)

@@ -23,7 +23,6 @@ namespace Repositories.Base
         IDonorProfileRepository DonorProfiles { get; }
         INotificationRepository Notifications { get; }
         IRefreshTokenRepository RefreshTokens { get; }
-        IBloodDonationWorkflowRepository BloodDonationWorkflows { get; }
         IDonorReminderSettingsRepository DonorReminderSettings { get; }
         IAnalyticsRepository Analytics { get; }
         IDonationAppointmentRequestRepository DonationAppointmentRequests { get; }

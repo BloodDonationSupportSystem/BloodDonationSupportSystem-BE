@@ -20,6 +20,34 @@ namespace BusinessObjects.Dtos
         
         public Guid DonationEventId { get; set; }
         public string DonorName { get; set; }
+
+        // Extended donation event information
+        public DonationEventInfoDto DonationEvent { get; set; }
+    }
+
+    // Simplified DTO with essential donation event information
+    public class DonationEventInfoDto
+    {
+        public Guid Id { get; set; }
+        
+        // Donor Information
+        public Guid? DonorId { get; set; }
+        public string DonorName { get; set; }
+        public string DonorPhone { get; set; }
+        
+        // Donation Details
+        public DateTimeOffset? DonationDate { get; set; }
+        public double? QuantityDonated { get; set; }
+        public double? QuantityUnits { get; set; }
+        public bool IsUsable { get; set; }
+        
+        // Location
+        public Guid LocationId { get; set; }
+        public string LocationName { get; set; }
+        
+        // Timestamps
+        public DateTimeOffset? CreatedTime { get; set; }
+        public DateTimeOffset? CompletedTime { get; set; }
     }
 
     public class CreateBloodInventoryDto
@@ -75,13 +103,13 @@ namespace BusinessObjects.Dtos
 
     public class BloodInventoryParameters : PaginationParameters
     {
-        public string Status { get; set; }
+        public string? Status { get; set; }
         public Guid? BloodGroupId { get; set; }
         public Guid? ComponentTypeId { get; set; }
         public DateTimeOffset? ExpirationStartDate { get; set; }
         public DateTimeOffset? ExpirationEndDate { get; set; }
         public bool? IsExpired { get; set; }
-        public string SortBy { get; set; }
+        public string? SortBy { get; set; }
         public bool SortAscending { get; set; } = false;
     }
 }

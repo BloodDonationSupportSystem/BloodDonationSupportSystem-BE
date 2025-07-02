@@ -30,7 +30,6 @@ namespace Repositories.Interface
         Task<bool> UpdateStatusAsync(Guid requestId, string status, Guid? updatedByUserId = null);
         Task<bool> UpdateDonorResponseAsync(Guid requestId, bool accepted, string? notes = null);
         Task<bool> UpdateStaffResponseAsync(Guid requestId, DateTimeOffset? confirmedDate, string? confirmedTimeSlot, Guid? confirmedLocationId, string? notes = null);
-        Task<bool> LinkToWorkflowAsync(Guid requestId, Guid workflowId);
         
         // Cleanup and maintenance
         Task<int> MarkExpiredRequestsAsync();

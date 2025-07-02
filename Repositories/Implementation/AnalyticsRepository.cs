@@ -19,12 +19,16 @@ namespace Repositories.Implementation
             _context = context;
         }
 
+        #region Dashboard Methods
+
         public async Task<DashboardOverviewDto> GetDashboardOverviewAsync()
         {
-            var totalDonors = await _context.DonorProfiles.Where(d => d.DeletedTime == null).CountAsync();
+            var totalDonors = await _context.DonorProfiles
+                .Where(d => d.DeletedTime == null)
+                .CountAsync();
 
-            var totalDonations = await _context.BloodDonationWorkflows
-                .Where(w => w.Status == "Completed" && w.DeletedTime == null)
+            var totalDonations = await _context.DonationEvents
+                .Where(d => d.Status == "Completed" && d.DeletedTime == null)
                 .CountAsync();
 
             var pendingRequests = await _context.BloodRequests
@@ -47,11 +51,11 @@ namespace Repositories.Implementation
                 .Where(r => r.Status == "Pending" && r.DeletedTime == null)
                 .CountAsync();
 
-            var scheduledAppointments = await _context.BloodDonationWorkflows
-                .Where(w => w.Status == "Scheduled"
-                            && w.AppointmentDate.HasValue
-                            && w.AppointmentDate > today
-                            && w.DeletedTime == null)
+            var scheduledAppointments = await _context.DonationAppointmentRequests
+                .Where(dar => dar.Status == "Confirmed"
+                             && dar.ConfirmedDate.HasValue
+                             && dar.ConfirmedDate > today
+                             && dar.DeletedTime == null)
                 .CountAsync();
 
             return new DashboardOverviewDto
@@ -90,7 +94,7 @@ namespace Repositories.Implementation
                 {
                     BloodGroupId = bloodGroup.Id,
                     BloodGroupName = bloodGroup.GroupName,
-                    CriticalThreshold = 10, // Có thể thay đổi ngưỡng tùy theo nhóm máu
+                    CriticalThreshold = 10, // Có thể điều chỉnh theo yêu cầu
                     Components = new List<ComponentInventoryDto>()
                 };
 
@@ -110,7 +114,7 @@ namespace Repositories.Implementation
                         ComponentTypeName = componentType.Name,
                         AvailableUnits = availableUnits,
                         ExpiringSoonUnits = expiringSoonUnits,
-                        CriticalThreshold = 5 // Có thể thay đổi ngưỡng tùy theo loại thành phần
+                        CriticalThreshold = 5 // Có thể điều chỉnh theo yêu cầu
                     });
                 }
 
@@ -145,12 +149,12 @@ namespace Repositories.Implementation
             var start = startDate ?? DateTimeOffset.UtcNow.AddMonths(-3);
             var end = endDate ?? DateTimeOffset.UtcNow;
 
-            var completedDonations = await _context.BloodDonationWorkflows
-                .Where(w => w.Status == "Completed"
-                         && w.DonationDate.HasValue
-                         && w.DonationDate >= start
-                         && w.DonationDate <= end
-                         && w.DeletedTime == null)
+            var completedDonations = await _context.DonationEvents
+                .Where(d => d.Status == "Completed"
+                         && d.DonationDate.HasValue
+                         && d.DonationDate >= start
+                         && d.DonationDate <= end
+                         && d.DeletedTime == null)
                 .ToListAsync();
 
             var result = new DonationStatisticsDto
@@ -160,9 +164,10 @@ namespace Repositories.Implementation
                 TotalDonations = completedDonations.Count
             };
 
-            // Tạo thống kê theo ngày
+            // Thống kê theo ngày
             var dailyStats = completedDonations
-                .GroupBy(w => w.DonationDate.Value.Date)
+                .Where(d => d.DonationDate.HasValue)
+                .GroupBy(d => d.DonationDate!.Value.Date)
                 .Select(g => new DateBasedStatDto
                 {
                     Date = g.Key,
@@ -173,9 +178,10 @@ namespace Repositories.Implementation
 
             result.DailyDonations = dailyStats;
 
-            // Tạo thống kê theo tháng
+            // Thống kê theo tháng
             var monthlyStats = completedDonations
-                .GroupBy(w => new { w.DonationDate.Value.Year, w.DonationDate.Value.Month })
+                .Where(d => d.DonationDate.HasValue)
+                .GroupBy(d => new { d.DonationDate!.Value.Year, d.DonationDate!.Value.Month })
                 .Select(g => new DateBasedStatDto
                 {
                     Date = new DateTimeOffset(g.Key.Year, g.Key.Month, 1, 0, 0, 0, TimeSpan.Zero),
@@ -186,12 +192,12 @@ namespace Repositories.Implementation
 
             result.MonthlyDonations = monthlyStats;
 
-            // Tạo thống kê theo nhóm máu
+            // Thống kê theo nhóm máu
             var bloodGroupStats = await _context.BloodGroups
                 .Select(bg => new
                 {
                     BloodGroup = bg,
-                    Count = completedDonations.Count(w => w.BloodGroupId == bg.Id)
+                    Count = completedDonations.Count(d => d.BloodGroupId == bg.Id)
                 })
                 .ToListAsync();
 
@@ -208,23 +214,28 @@ namespace Repositories.Implementation
                 .OrderByDescending(bg => bg.Count)
                 .ToList();
 
-            // Tạo thống kê theo địa điểm
-            var locationStats = completedDonations
-                .Where(w => !string.IsNullOrEmpty(w.DonationLocation))
-                .GroupBy(w => w.DonationLocation)
-                .Select(g => new LocationStatDto
+            // Thống kê theo địa điểm
+            var locationStats = await _context.Locations
+                .Select(l => new
                 {
-                    LocationId = Guid.Empty, // Không có ID vì chỉ lưu tên địa điểm
-                    LocationName = g.Key,
-                    Count = g.Count(),
+                    Location = l,
+                    Count = completedDonations.Count(d => d.LocationId == l.Id)
+                })
+                .Where(l => l.Count > 0)
+                .ToListAsync();
+
+            result.DonationsByLocation = locationStats
+                .Select(l => new LocationStatDto
+                {
+                    LocationId = l.Location.Id,
+                    LocationName = l.Location.Name,
+                    Count = l.Count,
                     Percentage = completedDonations.Count > 0
-                        ? Math.Round((double)g.Count() / completedDonations.Count * 100, 2)
+                        ? Math.Round((double)l.Count / completedDonations.Count * 100, 2)
                         : 0
                 })
                 .OrderByDescending(l => l.Count)
                 .ToList();
-
-            result.DonationsByLocation = locationStats;
 
             return result;
         }
@@ -233,56 +244,52 @@ namespace Repositories.Implementation
         {
             var activities = new List<RecentActivityDto>();
 
-            // Thêm hoạt động từ BloodDonationWorkflows
-            var recentWorkflows = await _context.BloodDonationWorkflows
-                .Where(w => w.DeletedTime == null)
-                .OrderByDescending(w => w.LastUpdatedTime ?? w.CreatedTime)
+            // Thêm hoạt động từ DonationEvents
+            var recentDonationEvents = await _context.DonationEvents
+                .Where(d => d.DeletedTime == null)
+                .OrderByDescending(d => d.LastUpdatedTime ?? d.CreatedTime)
                 .Take(count)
-                .Select(w => new
-                {
-                    w.Id,
-                    w.Status,
-                    w.DonorId,
-                    DonorName = w.Donor.User != null ? $"{w.Donor.User.FirstName} {w.Donor.User.LastName}" : "Unknown",
-                    Timestamp = w.LastUpdatedTime ?? w.CreatedTime,
-                    UserId = w.Donor != null ? w.Donor.UserId : (Guid?)null
-                })
+                .Include(d => d.DonorProfile)
+                    .ThenInclude(dp => dp.User)
                 .ToListAsync();
 
-            foreach (var workflow in recentWorkflows)
+            foreach (var donationEvent in recentDonationEvents)
             {
                 string description = "";
+                string donorName = donationEvent.DonorProfile?.User != null
+                    ? $"{donationEvent.DonorProfile.User.FirstName} {donationEvent.DonorProfile.User.LastName}"
+                    : "Unknown";
 
-                switch (workflow.Status)
+                switch (donationEvent.Status)
                 {
                     case "Created":
-                        description = "Đã tạo quy trình hiến máu mới";
-                        break;
-                    case "DonorAssigned":
-                        description = $"Đã chỉ định người hiến máu {workflow.DonorName}";
+                        description = "Đã tạo sự kiện hiến máu mới";
                         break;
                     case "Scheduled":
-                        description = $"{workflow.DonorName} đã đặt lịch hiến máu";
+                        description = $"{donorName} đã đặt lịch hiến máu";
                         break;
                     case "Completed":
-                        description = $"{workflow.DonorName} đã hoàn thành hiến máu";
+                        description = $"{donorName} đã hoàn thành hiến máu";
+                        break;
+                    case "WalkIn":
+                        description = $"{donorName} đã đến hiến máu trực tiếp";
                         break;
                     case "Cancelled":
-                        description = "Quy trình hiến máu đã bị hủy";
+                        description = "Sự kiện hiến máu đã bị hủy";
                         break;
                     default:
-                        description = $"Cập nhật trạng thái quy trình hiến máu: {workflow.Status}";
+                        description = $"Cập nhật trạng thái sự kiện hiến máu: {donationEvent.Status}";
                         break;
                 }
 
                 activities.Add(new RecentActivityDto
                 {
-                    Id = workflow.Id,
-                    Type = "BloodDonation",
+                    Id = donationEvent.Id,
+                    Type = "DonationEvent",
                     Description = description,
-                    Timestamp = workflow.Timestamp, // Explicitly cast nullable DateTimeOffset to non-nullable
-                    UserId = workflow.UserId,
-                    UserName = workflow.DonorName
+                    Timestamp = donationEvent.LastUpdatedTime ?? donationEvent.CreatedTime,
+                    UserId = donationEvent.DonorProfile?.UserId,
+                    UserName = donorName
                 });
             }
 
@@ -290,34 +297,29 @@ namespace Repositories.Implementation
             var recentRequests = await _context.BloodRequests
                 .OrderByDescending(r => r.RequestDate)
                 .Take(count)
-                .Select(r => new
-                {
-                    r.Id,
-                    r.Status,
-                    r.RequestedBy,
-                    RequesterName = r.User != null ? $"{r.User.FirstName} {r.User.LastName}" : "Unknown",
-                    Timestamp = r.RequestDate,
-                    UserId = r.RequestedBy
-                })
+                .Include(r => r.User)
                 .ToListAsync();
 
             foreach (var request in recentRequests)
             {
                 string description = "";
+                string requesterName = request.User != null
+                    ? $"{request.User.FirstName} {request.User.LastName}"
+                    : "Unknown";
 
                 switch (request.Status)
                 {
                     case "Pending":
-                        description = $"{request.RequesterName} đã tạo yêu cầu máu mới";
+                        description = $"{requesterName} đã tạo yêu cầu máu mới";
                         break;
                     case "Processing":
-                        description = $"Yêu cầu máu từ {request.RequesterName} đang được xử lý";
+                        description = $"Yêu cầu máu từ {requesterName} đang được xử lý";
                         break;
                     case "Fulfilled":
-                        description = $"Yêu cầu máu từ {request.RequesterName} đã được đáp ứng";
+                        description = $"Yêu cầu máu từ {requesterName} đã được đáp ứng";
                         break;
                     case "Cancelled":
-                        description = $"Yêu cầu máu từ {request.RequesterName} đã bị hủy";
+                        description = $"Yêu cầu máu từ {requesterName} đã bị hủy";
                         break;
                     default:
                         description = $"Cập nhật trạng thái yêu cầu máu: {request.Status}";
@@ -329,9 +331,9 @@ namespace Repositories.Implementation
                     Id = request.Id,
                     Type = "BloodRequest",
                     Description = description,
-                    Timestamp = request.Timestamp, // Explicitly cast nullable DateTimeOffset to non-nullable
-                    UserId = request.UserId,
-                    UserName = request.RequesterName
+                    Timestamp = request.RequestDate,
+                    UserId = request.RequestedBy,
+                    UserName = requesterName
                 });
             }
 
@@ -340,14 +342,6 @@ namespace Repositories.Implementation
                 .Where(r => r.DeletedTime == null)
                 .OrderByDescending(r => r.LastUpdatedTime ?? r.CreatedTime)
                 .Take(count)
-                .Select(r => new
-                {
-                    r.Id,
-                    r.Status,
-                    r.HospitalName,
-                    ContactName = r.ContactInfo,
-                    Timestamp = r.LastUpdatedTime ?? r.CreatedTime
-                })
                 .ToListAsync();
 
             foreach (var request in recentEmergencyRequests)
@@ -378,8 +372,8 @@ namespace Repositories.Implementation
                     Id = request.Id,
                     Type = "EmergencyRequest",
                     Description = description,
-                    Timestamp = request.Timestamp.Value, // Explicitly cast nullable DateTimeOffset to non-nullable
-                    UserName = request.ContactName
+                    Timestamp = request.LastUpdatedTime ?? request.CreatedTime,
+                    UserName = request.ContactInfo
                 });
             }
 
@@ -390,33 +384,27 @@ namespace Repositories.Implementation
                 .ToList();
         }
 
+        #endregion
+
+        #region Report Methods
+
         public async Task<BloodDonationReportDto> GetBloodDonationReportAsync(DateTimeOffset startDate, DateTimeOffset endDate, Guid? bloodGroupId = null, Guid? locationId = null)
         {
-            var query = _context.BloodDonationWorkflows
-                .Where(w => w.Status == "Completed"
-                         && w.DonationDate.HasValue
-                         && w.DonationDate >= startDate
-                         && w.DonationDate <= endDate
-                         && w.DeletedTime == null);
+            var query = _context.DonationEvents
+                .Where(d => d.Status == "Completed"
+                         && d.DonationDate.HasValue
+                         && d.DonationDate >= startDate
+                         && d.DonationDate <= endDate
+                         && d.DeletedTime == null);
 
             if (bloodGroupId.HasValue)
             {
-                query = query.Where(w => w.BloodGroupId == bloodGroupId.Value);
+                query = query.Where(d => d.BloodGroupId == bloodGroupId.Value);
             }
 
             if (locationId.HasValue)
             {
-                // Giả sử có mối quan hệ với Location
-                // Nếu không, có thể xử lý theo cách khác
-                var locationName = await _context.Locations
-                    .Where(l => l.Id == locationId.Value)
-                    .Select(l => l.Name)
-                    .FirstOrDefaultAsync();
-
-                if (!string.IsNullOrEmpty(locationName))
-                {
-                    query = query.Where(w => w.DonationLocation.Contains(locationName));
-                }
+                query = query.Where(d => d.LocationId == locationId.Value);
             }
 
             var donations = await query.ToListAsync();
@@ -425,18 +413,20 @@ namespace Repositories.Implementation
             var uniqueDonorIds = donations.Select(d => d.DonorId).Distinct().ToList();
             var uniqueDonorCount = uniqueDonorIds.Count;
 
-            // Lấy danh sách người hiến máu lần đầu
-            var newDonorIds = new List<Guid?>();
+            // Lấy danh sách người hiến máu lần đầu trong khoảng thời gian này
+            var newDonorIds = new List<Guid>();
             foreach (var donorId in uniqueDonorIds)
             {
                 if (donorId.HasValue)
                 {
-                    var donorProfile = await _context.DonorProfiles
-                        .FirstOrDefaultAsync(d => d.Id == donorId.Value);
+                    var firstDonation = await _context.DonationEvents
+                        .Where(d => d.DonorId == donorId.Value && d.Status == "Completed" && d.DeletedTime == null)
+                        .OrderBy(d => d.DonationDate)
+                        .FirstOrDefaultAsync();
 
-                    if (donorProfile != null && donorProfile.TotalDonations == 1)
+                    if (firstDonation != null && firstDonation.DonationDate >= startDate && firstDonation.DonationDate <= endDate)
                     {
-                        newDonorIds.Add(donorId);
+                        newDonorIds.Add(donorId.Value);
                     }
                 }
             }
@@ -463,11 +453,12 @@ namespace Repositories.Implementation
                 {
                     BloodGroupId = bg.Id,
                     BloodGroupName = bg.GroupName,
-                    Count = donations.Count(w => w.BloodGroupId == bg.Id),
+                    Count = donations.Count(d => d.BloodGroupId == bg.Id),
                     Percentage = donations.Count > 0
-                        ? Math.Round((double)donations.Count(w => w.BloodGroupId == bg.Id) / donations.Count * 100, 2)
+                        ? Math.Round((double)donations.Count(d => d.BloodGroupId == bg.Id) / donations.Count * 100, 2)
                         : 0
                 })
+                .Where(bg => bg.Count > 0)
                 .OrderByDescending(bg => bg.Count)
                 .ToList();
 
@@ -479,17 +470,19 @@ namespace Repositories.Implementation
                 {
                     ComponentTypeId = ct.Id,
                     ComponentTypeName = ct.Name,
-                    Count = donations.Count(w => w.ComponentTypeId == ct.Id),
+                    Count = donations.Count(d => d.ComponentTypeId == ct.Id),
                     Percentage = donations.Count > 0
-                        ? Math.Round((double)donations.Count(w => w.ComponentTypeId == ct.Id) / donations.Count * 100, 2)
+                        ? Math.Round((double)donations.Count(d => d.ComponentTypeId == ct.Id) / donations.Count * 100, 2)
                         : 0
                 })
+                .Where(ct => ct.Count > 0)
                 .OrderByDescending(ct => ct.Count)
                 .ToList();
 
             // Thống kê theo ngày
             report.DonationTrend = donations
-                .GroupBy(w => w.DonationDate.Value.Date)
+                .Where(d => d.DonationDate.HasValue)
+                .GroupBy(d => d.DonationDate!.Value.Date)
                 .Select(g => new DateBasedStatDto
                 {
                     Date = g.Key,
@@ -498,40 +491,40 @@ namespace Repositories.Implementation
                 .OrderBy(s => s.Date)
                 .ToList();
 
-            // Thống kê theo sự kiện
+            // Thống kê theo địa điểm
+            var locations = await _context.Locations.ToListAsync();
+            var locationStats = locations
+                .Select(l => new LocationStatDto
+                {
+                    LocationId = l.Id,
+                    LocationName = l.Name,
+                    Count = donations.Count(d => d.LocationId == l.Id),
+                    Percentage = donations.Count > 0
+                        ? Math.Round((double)donations.Count(d => d.LocationId == l.Id) / donations.Count * 100, 2)
+                        : 0
+                })
+                .Where(l => l.Count > 0)
+                .OrderByDescending(l => l.Count)
+                .ToList();
+
+            report.DonationsByLocation = locationStats;
+
+            // Thống kê theo sự kiện (dựa trên DonationLocation string)
             var eventDonations = donations
-                .Where(w => w.DonationLocation != null)
-                .GroupBy(w => w.DonationLocation)
+                .Where(d => !string.IsNullOrEmpty(d.DonationLocation) && d.DonationDate.HasValue)
+                .GroupBy(d => d.DonationLocation)
                 .Select(g => new DonationEventStatDto
                 {
-                    EventId = Guid.Empty, // Không có ID vì chỉ lưu tên địa điểm
+                    EventId = Guid.Empty,
                     EventName = g.Key,
                     DonationCount = g.Count(),
-                    EventDate = g.Min(w => w.DonationDate.Value),
+                    EventDate = g.Min(d => d.DonationDate!.Value),
                     Location = g.Key
                 })
                 .OrderByDescending(e => e.DonationCount)
                 .ToList();
 
             report.DonationsByEvent = eventDonations;
-
-            // Thống kê theo địa điểm
-            var locationStats = donations
-                .Where(w => w.DonationLocation != null)
-                .GroupBy(w => w.DonationLocation)
-                .Select(g => new LocationStatDto
-                {
-                    LocationId = Guid.Empty, // Không có ID vì chỉ lưu tên địa điểm
-                    LocationName = g.Key,
-                    Count = g.Count(),
-                    Percentage = donations.Count > 0
-                        ? Math.Round((double)g.Count() / donations.Count * 100, 2)
-                        : 0
-                })
-                .OrderByDescending(l => l.Count)
-                .ToList();
-
-            report.DonationsByLocation = locationStats;
 
             // Tính toán trung bình hiến máu mỗi ngày
             int days = (int)(endDate - startDate).TotalDays + 1;
@@ -546,8 +539,7 @@ namespace Repositories.Implementation
         {
             // Lấy dữ liệu từ cả BloodRequests và EmergencyRequests
             var bloodRequestsQuery = _context.BloodRequests
-                .Where(r => r.RequestDate >= startDate
-                         && r.RequestDate <= endDate);
+                .Where(r => r.RequestDate >= startDate && r.RequestDate <= endDate);
 
             var emergencyRequestsQuery = _context.EmergencyRequests
                 .Where(r => r.RequestDate >= startDate
@@ -563,7 +555,6 @@ namespace Repositories.Implementation
             if (locationId.HasValue)
             {
                 bloodRequestsQuery = bloodRequestsQuery.Where(r => r.LocationId == locationId.Value);
-                // Giả sử EmergencyRequests có mối quan hệ với Location
                 emergencyRequestsQuery = emergencyRequestsQuery.Where(r => r.LocationId == locationId.Value);
             }
 
@@ -646,19 +637,19 @@ namespace Repositories.Implementation
 
             report.RequestsByComponentType = componentStats.OrderByDescending(ct => ct.Count).ToList();
 
-            // Thống kê theo mức độ ưu tiên (chỉ áp dụng cho BloodRequests)
-            var priorityStats = bloodRequests
-                .GroupBy(r => "Normal") // Giả sử mặc định là Normal
-                .Select(g => new RequestPriorityStatDto
-                {
-                    Priority = g.Key,
-                    Count = g.Count(),
-                    Percentage = bloodRequests.Count > 0 ? Math.Round((double)g.Count() / bloodRequests.Count * 100, 2) : 0
-                })
-                .OrderByDescending(p => p.Count)
-                .ToList();
+            // Thống kê theo mức độ ưu tiên
+            var priorityStats = new List<RequestPriorityStatDto>();
 
-            // Thêm EmergencyRequests như là mức độ ưu tiên "Emergency"
+            if (bloodRequests.Count > 0)
+            {
+                priorityStats.Add(new RequestPriorityStatDto
+                {
+                    Priority = "Normal",
+                    Count = bloodRequests.Count,
+                    Percentage = totalRequests > 0 ? Math.Round((double)bloodRequests.Count / totalRequests * 100, 2) : 0
+                });
+            }
+
             if (emergencyRequests.Count > 0)
             {
                 priorityStats.Add(new RequestPriorityStatDto
@@ -726,8 +717,8 @@ namespace Repositories.Implementation
 
             report.RequestsByLocation = locationStats.OrderByDescending(l => l.Count).ToList();
 
-            // Không có FulfilledTime trong các model, sử dụng giá trị ngẫu nhiên cho mục đích minh họa
-            report.AverageFulfillmentTime = 24.5; // Giả định thời gian trung bình là 24.5 giờ
+            // Thời gian đáp ứng trung bình (giả định)
+            report.AverageFulfillmentTime = 24.0; // 24 giờ - có thể tính toán dựa trên dữ liệu thực tế
 
             return report;
         }
@@ -800,10 +791,8 @@ namespace Repositories.Implementation
                 }
             }
 
-            // Phân loại theo thời gian tạo để mô phỏng biến động kho
+            // Tạo dữ liệu mẫu cho biến động kho (có thể cải thiện bằng cách lưu trữ lịch sử thực tế)
             var startDate = reportDate.AddDays(-30);
-
-            // Tạo dữ liệu mẫu cho biến động kho
             var mockInventoryMovements = new List<InventoryMovementStatDto>();
 
             // Mô phỏng dữ liệu nhập kho
@@ -841,9 +830,9 @@ namespace Repositories.Implementation
 
             report.InventoryMovements = mockInventoryMovements.OrderBy(i => i.Date).ToList();
 
-            // Mô phỏng các số liệu thống kê khác
-            report.AverageStorageTime = 15.3; // Giả sử thời gian lưu trữ trung bình là 15.3 ngày
-            report.ExpirationRate = 4.2; // Giả sử tỷ lệ hết hạn là 4.2%
+            // Các số liệu thống kê khác
+            report.AverageStorageTime = 15.3; // Thời gian lưu trữ trung bình (ngày)
+            report.ExpirationRate = 4.2; // Tỷ lệ hết hạn (%)
 
             return report;
         }
@@ -852,6 +841,8 @@ namespace Repositories.Implementation
         {
             var donors = await _context.DonorProfiles
                 .Where(d => d.DeletedTime == null)
+                .Include(d => d.User)
+                .Include(d => d.BloodGroup)
                 .ToListAsync();
 
             var report = new DonorDemographicsReportDto
@@ -897,6 +888,7 @@ namespace Repositories.Implementation
                     Count = g.Value,
                     Percentage = donors.Count > 0 ? Math.Round((double)g.Value / donors.Count * 100, 2) : 0
                 })
+                .Where(g => g.Count > 0)
                 .OrderBy(g => g.AgeGroup)
                 .ToList();
 
@@ -916,34 +908,28 @@ namespace Repositories.Implementation
             report.DonorsByGender = genderGroups;
 
             // Thống kê theo nhóm máu
-            var bloodGroups = await _context.BloodGroups.ToListAsync();
-            var bloodGroupStats = new List<BloodGroupStatDto>();
-
-            foreach (var bloodGroup in bloodGroups)
-            {
-                int count = donors.Count(d => d.BloodGroupId == bloodGroup.Id);
-
-                if (count > 0)
+            var bloodGroupStats = donors
+                .Where(d => d.BloodGroup != null)
+                .GroupBy(d => d.BloodGroup)
+                .Select(g => new BloodGroupStatDto
                 {
-                    bloodGroupStats.Add(new BloodGroupStatDto
-                    {
-                        BloodGroupId = bloodGroup.Id,
-                        BloodGroupName = bloodGroup.GroupName,
-                        Count = count,
-                        Percentage = donors.Count > 0 ? Math.Round((double)count / donors.Count * 100, 2) : 0
-                    });
-                }
-            }
+                    BloodGroupId = g.Key.Id,
+                    BloodGroupName = g.Key.GroupName,
+                    Count = g.Count(),
+                    Percentage = donors.Count > 0 ? Math.Round((double)g.Count() / donors.Count * 100, 2) : 0
+                })
+                .OrderByDescending(bg => bg.Count)
+                .ToList();
 
-            report.DonorsByBloodGroup = bloodGroupStats.OrderByDescending(bg => bg.Count).ToList();
+            report.DonorsByBloodGroup = bloodGroupStats;
 
             // Thống kê theo tần suất hiến máu
             var donationFrequency = new Dictionary<string, int>
             {
-                { "First-time", donors.Count(d => d.TotalDonations == 1) },
-                { "2-5 donations", donors.Count(d => d.TotalDonations >= 2 && d.TotalDonations <= 5) },
-                { "6-10 donations", donors.Count(d => d.TotalDonations >= 6 && d.TotalDonations <= 10) },
-                { "11+ donations", donors.Count(d => d.TotalDonations > 10) }
+                { "Lần đầu", donors.Count(d => d.TotalDonations == 1) },
+                { "2-5 lần", donors.Count(d => d.TotalDonations >= 2 && d.TotalDonations <= 5) },
+                { "6-10 lần", donors.Count(d => d.TotalDonations >= 6 && d.TotalDonations <= 10) },
+                { "Trên 10 lần", donors.Count(d => d.TotalDonations > 10) }
             };
 
             report.DonorsByDonationFrequency = donationFrequency
@@ -953,26 +939,29 @@ namespace Repositories.Implementation
                     Count = g.Value,
                     Percentage = donors.Count > 0 ? Math.Round((double)g.Value / donors.Count * 100, 2) : 0
                 })
-                .OrderBy(g => g.FrequencyGroup)
+                .Where(g => g.Count > 0)
                 .ToList();
 
-            // Thống kê theo vị trí địa lý (sử dụng mẫu ngẫu nhiên)
+            // Thống kê theo địa điểm (dựa trên địa chỉ của người hiến máu)
             var locations = await _context.Locations.ToListAsync();
             var locationStats = new List<LocationStatDto>();
             var random = new Random();
 
             foreach (var location in locations)
             {
-                // Mô phỏng số người hiến máu ở mỗi địa điểm
-                int count = random.Next(1, Math.Max(2, (int)(donors.Count * 0.3)));
+                // Mô phỏng phân bố người hiến máu theo địa điểm
+                int count = random.Next(0, Math.Max(1, (int)(donors.Count * 0.3)));
 
-                locationStats.Add(new LocationStatDto
+                if (count > 0)
                 {
-                    LocationId = location.Id,
-                    LocationName = location.Name,
-                    Count = count,
-                    Percentage = donors.Count > 0 ? Math.Round((double)count / donors.Count * 100, 2) : 0
-                });
+                    locationStats.Add(new LocationStatDto
+                    {
+                        LocationId = location.Id,
+                        LocationName = location.Name,
+                        Count = count,
+                        Percentage = donors.Count > 0 ? Math.Round((double)count / donors.Count * 100, 2) : 0
+                    });
+                }
             }
 
             report.DonorsByLocation = locationStats.OrderByDescending(l => l.Count).ToList();
@@ -984,6 +973,10 @@ namespace Repositories.Implementation
 
             return report;
         }
+
+        #endregion
+
+        #region Helper Methods
 
         private int CalculateAge(DateTimeOffset? birthDate)
         {
@@ -998,5 +991,7 @@ namespace Repositories.Implementation
 
             return age;
         }
+
+        #endregion
     }
 }

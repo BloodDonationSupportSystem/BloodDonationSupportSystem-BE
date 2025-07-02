@@ -4,6 +4,7 @@ using BusinessObjects.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BusinessObjects.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250702062610_YourNextMigration")]
+    partial class YourNextMigration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -354,10 +357,6 @@ namespace BusinessObjects.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ActionTaken")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<bool>("AppointmentConfirmed")
                         .HasColumnType("bit");
 
@@ -372,13 +371,6 @@ namespace BusinessObjects.Migrations
                     b.Property<Guid>("BloodGroupId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("BloodPressure")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("CheckInTime")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<string>("CollectedAt")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -386,14 +378,6 @@ namespace BusinessObjects.Migrations
 
                     b.Property<DateTimeOffset?>("CompletedTime")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ComplicationDetails")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ComplicationType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("ComponentTypeId")
                         .HasColumnType("uniqueidentifier");
@@ -415,25 +399,13 @@ namespace BusinessObjects.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
-                    b.Property<DateTimeOffset?>("DonationStartTime")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<Guid?>("DonorId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<double?>("Height")
-                        .HasColumnType("float");
-
-                    b.Property<double?>("HemoglobinLevel")
-                        .HasColumnType("float");
 
                     b.Property<int?>("InventoryId")
                         .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsUsable")
                         .HasColumnType("bit");
 
                     b.Property<string>("LastUpdatedBy")
@@ -445,10 +417,6 @@ namespace BusinessObjects.Migrations
                     b.Property<Guid>("LocationId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("MedicalNotes")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -459,10 +427,6 @@ namespace BusinessObjects.Migrations
 
                     b.Property<int>("QuantityUnits")
                         .HasColumnType("int");
-
-                    b.Property<string>("RejectionReason")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("RequestId")
                         .HasColumnType("uniqueidentifier");
@@ -484,12 +448,6 @@ namespace BusinessObjects.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
-
-                    b.Property<double?>("Temperature")
-                        .HasColumnType("float");
-
-                    b.Property<double?>("Weight")
-                        .HasColumnType("float");
 
                     b.HasKey("Id");
 

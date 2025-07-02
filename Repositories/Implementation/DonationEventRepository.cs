@@ -23,6 +23,7 @@ namespace Repositories.Implementation
                 .Include(de => de.BloodGroup)
                 .Include(de => de.ComponentType)
                 .Include(de => de.Location)
+                .Include(de => de.Staff)
                 .FirstOrDefaultAsync(de => de.Id == id);
         }
 
@@ -34,6 +35,7 @@ namespace Repositories.Implementation
                 .Include(de => de.BloodGroup)
                 .Include(de => de.ComponentType)
                 .Include(de => de.Location)
+                .Include(de => de.Staff)
                 .FirstOrDefaultAsync(de => de.Id == id);
         }
 
@@ -44,7 +46,8 @@ namespace Repositories.Implementation
                     .ThenInclude(dp => dp.User)
                 .Include(de => de.BloodGroup)
                 .Include(de => de.ComponentType)
-                .Include(de => de.Location);
+                .Include(de => de.Location)
+                .Include(de => de.Staff);
 
             // Apply filters
             if (!string.IsNullOrEmpty(parameters.Status))

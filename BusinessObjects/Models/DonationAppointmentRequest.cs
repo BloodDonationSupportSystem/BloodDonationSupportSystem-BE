@@ -50,10 +50,6 @@ namespace BusinessObjects.Models
         public DateTimeOffset? DonorResponseAt { get; set; }
         public string? DonorResponseNotes { get; set; }
         
-        // Workflow Connection
-        public Guid? WorkflowId { get; set; }
-        public virtual BloodDonationWorkflow? Workflow { get; set; }
-        
         // Priority and Urgency
         public bool IsUrgent { get; set; } = false;
         public int Priority { get; set; } = 1; // 1 = Normal, 2 = High, 3 = Critical

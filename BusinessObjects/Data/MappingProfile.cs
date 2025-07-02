@@ -226,32 +226,6 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.DeletedTime, opt => opt.Ignore())
                 .ForMember(dest => dest.User, opt => opt.Ignore());
 
-            // ========== BloodDonationWorkflow mappings ==========
-            CreateMap<BloodDonationWorkflow, DonationWorkflowDto>()
-                .ForMember(dest => dest.DonorName, opt => opt.MapFrom(src => src.Donor != null ? $"{src.Donor.User.FirstName} {src.Donor.User.LastName}" : null))
-                .ForMember(dest => dest.BloodGroupName, opt => opt.MapFrom(src => src.BloodGroup != null ? src.BloodGroup.GroupName : null))
-                .ForMember(dest => dest.ComponentTypeName, opt => opt.MapFrom(src => src.ComponentType != null ? src.ComponentType.Name : null));
-
-            CreateMap<CreateDonationWorkflowDto, BloodDonationWorkflow>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
-                .ForMember(dest => dest.CreatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.LastUpdatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.DeletedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.Donor, opt => opt.Ignore())
-                .ForMember(dest => dest.BloodGroup, opt => opt.Ignore())
-                .ForMember(dest => dest.ComponentType, opt => opt.Ignore())
-                .ForMember(dest => dest.Inventory, opt => opt.Ignore());
-
-            CreateMap<UpdateDonationWorkflowDto, BloodDonationWorkflow>()
-                .ForMember(dest => dest.Id, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.LastUpdatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.DeletedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.Donor, opt => opt.Ignore())
-                .ForMember(dest => dest.BloodGroup, opt => opt.Ignore())
-                .ForMember(dest => dest.ComponentType, opt => opt.Ignore())
-                .ForMember(dest => dest.Inventory, opt => opt.Ignore());
-
             // ========== DonorReminderSettings mappings ==========
             CreateMap<DonorReminderSettings, DonorReminderSettingsDto>()
                 .ForMember(dest => dest.DonorName, opt => opt.MapFrom(src =>
@@ -292,7 +266,14 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.ReviewedByUserName, opt => opt.MapFrom(src => 
                     src.ReviewedByUser != null ? $"{src.ReviewedByUser.FirstName} {src.ReviewedByUser.LastName}" : null))
                 .ForMember(dest => dest.ConfirmedLocationName, opt => opt.MapFrom(src => 
-                    src.ConfirmedLocation != null ? src.ConfirmedLocation.Name : null));
+                    src.ConfirmedLocation != null ? src.ConfirmedLocation.Name : null))
+                // Add additional donor donation information
+                .ForMember(dest => dest.TotalDonations, opt => opt.MapFrom(src => 
+                    src.Donor != null ? src.Donor.TotalDonations : 0))
+                .ForMember(dest => dest.LastDonationDate, opt => opt.MapFrom(src => 
+                    src.Donor != null ? src.Donor.LastDonationDate : null))
+                .ForMember(dest => dest.NextEligibleDonationDate, opt => opt.MapFrom(src => 
+                    src.Donor != null ? src.Donor.NextAvailableDonationDate : null));
 
             CreateMap<CreateDonorAppointmentRequestDto, DonationAppointmentRequest>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
@@ -308,8 +289,7 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.ComponentType, opt => opt.Ignore())
                 .ForMember(dest => dest.InitiatedByUser, opt => opt.Ignore())
                 .ForMember(dest => dest.ReviewedByUser, opt => opt.Ignore())
-                .ForMember(dest => dest.ConfirmedLocation, opt => opt.Ignore())
-                .ForMember(dest => dest.Workflow, opt => opt.Ignore());
+                .ForMember(dest => dest.ConfirmedLocation, opt => opt.Ignore());
 
             CreateMap<CreateStaffAppointmentRequestDto, DonationAppointmentRequest>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
@@ -326,8 +306,7 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.ComponentType, opt => opt.Ignore())
                 .ForMember(dest => dest.InitiatedByUser, opt => opt.Ignore())
                 .ForMember(dest => dest.ReviewedByUser, opt => opt.Ignore())
-                .ForMember(dest => dest.ConfirmedLocation, opt => opt.Ignore())
-                .ForMember(dest => dest.Workflow, opt => opt.Ignore());
+                .ForMember(dest => dest.ConfirmedLocation, opt => opt.Ignore());
 
             CreateMap<UpdateAppointmentRequestDto, DonationAppointmentRequest>()
                 .ForMember(dest => dest.LastUpdatedTime, opt => opt.Ignore())

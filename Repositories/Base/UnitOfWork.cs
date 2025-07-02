@@ -25,7 +25,6 @@ namespace Repositories.Base
         private IDonorProfileRepository _donorProfileRepository;
         private INotificationRepository _notificationRepository;
         private IRefreshTokenRepository _refreshTokenRepository;
-        private IBloodDonationWorkflowRepository _bloodDonationWorkflowRepository;
         private IDonorReminderSettingsRepository _donorReminderSettingsRepository;
         private IAnalyticsRepository _analyticsRepository;
         private IDonationAppointmentRequestRepository _donationAppointmentRequestRepository;
@@ -51,7 +50,6 @@ namespace Repositories.Base
         public IDonorProfileRepository DonorProfiles => _donorProfileRepository ??= new DonorProfileRepository(_context);
         public INotificationRepository Notifications => _notificationRepository ??= new NotificationRepository(_context);
         public IRefreshTokenRepository RefreshTokens => _refreshTokenRepository ??= new RefreshTokenRepository(_context);
-        public IBloodDonationWorkflowRepository BloodDonationWorkflows => _bloodDonationWorkflowRepository ??= new BloodDonationWorkflowRepository(_context);
         public IDonorReminderSettingsRepository DonorReminderSettings => _donorReminderSettingsRepository ??= new DonorReminderSettingsRepository(_context);
         public IAnalyticsRepository Analytics => _analyticsRepository ??= new AnalyticsRepository(_context);
         public IDonationAppointmentRequestRepository DonationAppointmentRequests => _donationAppointmentRequestRepository ??= new DonationAppointmentRequestRepository(_context);

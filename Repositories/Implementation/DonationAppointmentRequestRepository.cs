@@ -31,7 +31,6 @@ namespace Repositories.Implementation
                 .Include(r => r.InitiatedByUser)
                 .Include(r => r.ReviewedByUser)
                 .Include(r => r.ConfirmedLocation)
-                .Include(r => r.Workflow)
                 .FirstOrDefaultAsync(r => r.Id == id && r.DeletedTime == null);
         }
 
@@ -341,18 +340,6 @@ namespace Repositories.Implementation
             request.ConfirmedTimeSlot = confirmedTimeSlot;
             request.ConfirmedLocationId = confirmedLocationId;
             request.Notes = notes;
-            request.LastUpdatedTime = DateTimeOffset.UtcNow;
-
-            Update(request);
-            return true;
-        }
-
-        public async Task<bool> LinkToWorkflowAsync(Guid requestId, Guid workflowId)
-        {
-            var request = await GetByIdAsync(requestId);
-            if (request == null) return false;
-
-            request.WorkflowId = workflowId;
             request.LastUpdatedTime = DateTimeOffset.UtcNow;
 
             Update(request);

@@ -4,6 +4,16 @@ using System.ComponentModel.DataAnnotations;
 
 namespace BusinessObjects.Dtos
 {
+    public class UpdateDonorBloodGroupDto
+    {
+        [Required(ErrorMessage = "Donor profile ID is required")]
+        public Guid DonorProfileId { get; set; }
+
+        [Required(ErrorMessage = "Blood group ID is required")]
+        public Guid BloodGroupId { get; set; }
+
+        public string Notes { get; set; }
+    }
     public class DonorProfileDto
     {
         public Guid Id { get; set; }
@@ -31,6 +41,42 @@ namespace BusinessObjects.Dtos
         public string LastName { get; set; }
         public string PhoneNumber { get; set; }
         public string Email { get; set; }
+    }
+
+    public class WalkInDonorProfileDto
+    {
+        // Thông tin cá nhân b?t bu?c
+        [Required]
+        public string FirstName { get; set; }
+
+        [Required]
+        public string LastName { get; set; }
+
+        [Required]
+        public string PhoneNumber { get; set; }
+
+        [Required]
+        public DateTimeOffset DateOfBirth { get; set; }
+
+        [Required]
+        public Guid BloodGroupId { get; set; }
+
+        // Thông tin nh?n d?ng
+        [Required]
+        public string IdentityNumber { get; set; }
+
+        // Thông tin liên h? và ??a ch? (có th? không b?t bu?c)
+        public string Email { get; set; }
+
+        public string Address { get; set; }
+
+        // Thông tin s?c kh?e
+        public bool HasDonatedBefore { get; set; }
+
+        public DateTimeOffset? LastDonationDate { get; set; }
+
+        // Thông tin b? sung
+        public string Notes { get; set; }
     }
 
     public class CreateDonorProfileDto

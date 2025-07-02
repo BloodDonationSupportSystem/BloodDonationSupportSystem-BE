@@ -85,7 +85,7 @@ namespace BusinessObjects.Dtos
         public Guid Id { get; set; }
         public string Type { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public DateTimeOffset Timestamp { get; set; }
+        public DateTimeOffset? Timestamp { get; set; }
         public Guid? UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
     }
