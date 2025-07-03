@@ -16,7 +16,6 @@ namespace Repositories.Base
         IUserRepository Users { get; }
         IBloodRequestRepository BloodRequests { get; }
         IDonationEventRepository DonationEvents { get; }
-        IEmergencyRequestRepository EmergencyRequests { get; }
         IBloodInventoryRepository BloodInventories { get; }
         IBlogPostRepository BlogPosts { get; }
         IDocumentRepository Documents { get; }

@@ -57,6 +57,12 @@ namespace Repositories.Implementation
                 query = query.Where(br => br.RequestDate <= parameters.EndDate);
             }
 
+            // Apply IsEmergency filter if specified
+            if (parameters.IsEmergency.HasValue)
+            {
+                query = query.Where(br => br.IsEmergency == parameters.IsEmergency.Value);
+            }
+
             // Apply sorting
             query = ApplySorting(query, parameters);
 
@@ -162,6 +168,12 @@ namespace Repositories.Implementation
             if (parameters.EndDate.HasValue)
             {
                 query = query.Where(br => br.RequestDate <= parameters.EndDate);
+            }
+
+            // Apply IsEmergency filter if specified
+            if (parameters.IsEmergency.HasValue)
+            {
+                query = query.Where(br => br.IsEmergency == parameters.IsEmergency.Value);
             }
 
             // Get all filtered requests

@@ -31,7 +31,7 @@ namespace BusinessObjects.Dtos
         public string? StaffName { get; set; }
         
         // Request Information
-        public string RequestType { get; set; } = string.Empty; // "Appointment", "BloodRequest", "EmergencyRequest", "DirectDonation"
+        public string RequestType { get; set; } = string.Empty; // "Appointment", "BloodRequest", "DirectDonation"
         public Guid? RequestId { get; set; }
         
         // Appointment Details
@@ -86,8 +86,8 @@ namespace BusinessObjects.Dtos
         public Guid RequestId { get; set; }
         
         [Required(ErrorMessage = "Request type is required")]
-        [RegularExpression("^(BloodRequest|EmergencyRequest)$", ErrorMessage = "Request type must be BloodRequest or EmergencyRequest")]
-        public string RequestType { get; set; } = string.Empty;
+        [RegularExpression("^(BloodRequest)$", ErrorMessage = "Request type must be BloodRequest")]
+        public string RequestType { get; set; } = "BloodRequest";
         
         [Required(ErrorMessage = "Location is required")]
         public Guid LocationId { get; set; }

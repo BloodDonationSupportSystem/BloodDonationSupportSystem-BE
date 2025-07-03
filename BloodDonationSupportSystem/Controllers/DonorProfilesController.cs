@@ -14,13 +14,17 @@ namespace BloodDonationSupportSystem.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize] // Mặc định yêu cầu đăng nhập cho tất cả các endpoints
-    public class DonorProfilesController : BaseApiController
+    public partial class DonorProfilesController : BaseApiController
     {
         private readonly IDonorProfileService _donorProfileService;
+        private readonly IRealTimeNotificationService _realTimeNotificationService;
 
-        public DonorProfilesController(IDonorProfileService donorProfileService)
+        public DonorProfilesController(
+            IDonorProfileService donorProfileService,
+            IRealTimeNotificationService realTimeNotificationService = null)
         {
             _donorProfileService = donorProfileService;
+            _realTimeNotificationService = realTimeNotificationService;
         }
 
         // GET: api/DonorProfiles/current/exists
@@ -208,6 +212,26 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
+        // GET: api/DonorProfiles/nearby/emergency
+        [HttpGet("nearby/emergency")]
+        [Authorize(Roles = "Admin,Staff")]
+        [ProducesResponseType(typeof(ApiResponse<IEnumerable<DonorProfileDto>>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetNearbyEmergencyDonors([FromQuery] NearbyDonorSearchDto searchDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResponse(HandleValidationErrors<IEnumerable<DonorProfileDto>>(ModelState));
+            }
+            
+            // Set emergency flag to true for emergency donors
+            searchDto.ForEmergency = true;
+            
+            var response = await _donorProfileService.GetAvailableDonorsByDistanceAsync(searchDto);
+            return HandleResponse(response);
+        }
+
         // POST: api/DonorProfiles
         [HttpPost]
         [Authorize(Roles = "Member")] // Chỉ Member mới được tạo hồ sơ hiến máu (cho chính họ)
@@ -223,6 +247,42 @@ namespace BloodDonationSupportSystem.Controllers
 
             var response = await _donorProfileService.CreateDonorProfileAsync(donorProfileDto);
             return HandleResponse(response);
+        }
+
+        // POST: api/DonorProfiles/notify-emergency
+        [HttpPost("notify-emergency")]
+        [Authorize(Roles = "Admin,Staff")]
+        [ProducesResponseType(typeof(ApiResponse), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> NotifyNearbyDonors([FromBody] EmergencyNotificationDto notificationDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResponse(HandleValidationErrors<ApiResponse>(ModelState));
+            }
+            
+            if (_realTimeNotificationService == null)
+            {
+                return HandleResponse(new ApiResponse(
+                    HttpStatusCode.InternalServerError,
+                    "Real-time notification service is not available"));
+            }
+
+            try
+            {
+                await _realTimeNotificationService.NotifyNearbyDonors(
+                    notificationDto.EmergencyRequestDto,
+                    notificationDto.DonorIds);
+                
+                return HandleResponse(new ApiResponse("Emergency notifications sent successfully"));
+            }
+            catch (Exception ex)
+            {
+                return HandleResponse(new ApiResponse(
+                    HttpStatusCode.InternalServerError,
+                    $"Error sending emergency notifications: {ex.Message}"));
+            }
         }
 
         // PUT: api/DonorProfiles/5

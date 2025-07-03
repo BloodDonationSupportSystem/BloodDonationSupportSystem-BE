@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Repositories.Base;
 using Repositories.Interface;
@@ -22,8 +23,8 @@ namespace Services.Implementation
         private readonly ILogger<DonationEventService> _logger;
         private readonly INotificationService _notificationService;
         private readonly IBloodRequestService _bloodRequestService;
-        private readonly IEmergencyRequestService _emergencyRequestService;
         private readonly IBloodInventoryService _bloodInventoryService;
+        private readonly IRealTimeNotificationService _realTimeNotificationService;
 
         public DonationEventService(
             IUnitOfWork unitOfWork,
@@ -31,16 +32,16 @@ namespace Services.Implementation
             ILogger<DonationEventService> logger,
             INotificationService notificationService,
             IBloodRequestService bloodRequestService,
-            IEmergencyRequestService emergencyRequestService,
-            IBloodInventoryService bloodInventoryService)
+            IBloodInventoryService bloodInventoryService,
+            IRealTimeNotificationService realTimeNotificationService)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
             _notificationService = notificationService;
             _bloodRequestService = bloodRequestService;
-            _emergencyRequestService = emergencyRequestService;
             _bloodInventoryService = bloodInventoryService;
+            _realTimeNotificationService = realTimeNotificationService;
         }
 
         public async Task<PagedApiResponse<DonationEventDto>> GetPagedDonationEventsAsync(DonationEventParameters parameters)
@@ -188,52 +189,25 @@ namespace Services.Implementation
         {
             try
             {
-                // Fetch required details based on request type
-                Guid bloodGroupId;
-                Guid componentTypeId;
-                double requiredQuantity;
-                
-                if (donationEventDto.RequestType == "BloodRequest")
-                {
-                    var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(donationEventDto.RequestId);
-                    if (bloodRequest == null)
-                    {
-                        return new ApiResponse<DonationEventDto>(
-                            HttpStatusCode.NotFound,
-                            "Blood request not found");
-                    }
-                    
-                    bloodGroupId = bloodRequest.BloodGroupId;
-                    componentTypeId = bloodRequest.ComponentTypeId;
-                    requiredQuantity = bloodRequest.QuantityUnits;
-                }
-                else if (donationEventDto.RequestType == "EmergencyRequest")
-                {
-                    var emergencyRequest = await _unitOfWork.EmergencyRequests.GetByIdAsync(donationEventDto.RequestId);
-                    if (emergencyRequest == null)
-                    {
-                        return new ApiResponse<DonationEventDto>(
-                            HttpStatusCode.NotFound,
-                            "Emergency request not found");
-                    }
-                    
-                    bloodGroupId = emergencyRequest.BloodGroupId;
-                    componentTypeId = emergencyRequest.ComponentTypeId;
-                    requiredQuantity = emergencyRequest.QuantityUnits;
-                }
-                else
+                // Chỉ sử dụng BloodRequest cho cả yêu cầu thường và khẩn cấp
+                var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(donationEventDto.RequestId);
+                if (bloodRequest == null)
                 {
                     return new ApiResponse<DonationEventDto>(
-                        HttpStatusCode.BadRequest,
-                        "Invalid request type. Must be 'BloodRequest' or 'EmergencyRequest'");
+                        HttpStatusCode.NotFound,
+                        "Blood request not found");
                 }
+                
+                var bloodGroupId = bloodRequest.BloodGroupId;
+                var componentTypeId = bloodRequest.ComponentTypeId;
+                var requiredQuantity = bloodRequest.QuantityUnits;
                 
                 // Create a new donation event
                 var donationEvent = new DonationEvent
                 {
                     Id = Guid.NewGuid(),
                     RequestId = donationEventDto.RequestId,
-                    RequestType = donationEventDto.RequestType,
+                    RequestType = "BloodRequest", // Luôn là BloodRequest
                     BloodGroupId = bloodGroupId,
                     ComponentTypeId = componentTypeId,
                     LocationId = donationEventDto.LocationId,
@@ -263,6 +237,10 @@ namespace Services.Implementation
                         // Update inventory status
                         compatibleInventory.Status = "Reserved";
                         _unitOfWork.BloodInventories.Update(compatibleInventory);
+                        
+                        // Update blood request status
+                        bloodRequest.Status = "Fulfilled";
+                        _unitOfWork.BloodRequests.Update(bloodRequest);
                     }
                 }
                 
@@ -270,16 +248,40 @@ namespace Services.Implementation
                 await _unitOfWork.DonationEvents.AddAsync(donationEvent);
                 await _unitOfWork.CompleteAsync();
                 
-                // Send notification if needed based on donation event status
+                // Send real-time notifications
                 if (donationEvent.Status == "Created")
                 {
                     await SendDonationEventNotificationAsync(donationEvent, "New donation event created and awaiting donor assignment");
+                    
+                    // Send realtime notification to staff for emergency requests
+                    if (bloodRequest.IsEmergency)
+                    {
+                        await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                            bloodRequest.Id, 
+                            "Processing", 
+                            "Emergency request is being processed - donation event created");
+                        await _realTimeNotificationService.UpdateEmergencyDashboard();
+                    }
                 }
                 else if (donationEvent.Status == "CompletedFromInventory")
                 {
                     await SendDonationEventNotificationAsync(donationEvent, "Request fulfilled from existing blood inventory");
-                    await UpdateRequestStatusAsync(donationEventDto.RequestId, donationEventDto.RequestType, "Fulfilled");
+                    
+                    // Send realtime notification for fulfilled request
+                    if (bloodRequest.IsEmergency)
+                    {
+                        await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                            bloodRequest.Id, 
+                            "Fulfilled", 
+                            "Emergency request fulfilled from existing inventory");
+                        await _realTimeNotificationService.UpdateEmergencyDashboard();
+                    }
+                    
+                    await _realTimeNotificationService.NotifyBloodRequestStatusChange(
+                        bloodRequest.Id, "Fulfilled", "Request fulfilled from inventory");
                 }
+                
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 
                 var result = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(result);
@@ -418,6 +420,11 @@ namespace Services.Implementation
                     });
                 }
                 
+                // Send real-time notification for walk-in donation
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    donationEvent.Id, "WalkIn", "New walk-in donor checked in");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                
                 var result = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(result);
                 
@@ -445,6 +452,8 @@ namespace Services.Implementation
                         HttpStatusCode.NotFound,
                         "Donation event not found");
                 }
+                
+                string previousStatus = donationEvent.Status;
                 
                 // Update donation event properties
                 if (!string.IsNullOrEmpty(donationEventDto.Status))
@@ -491,7 +500,11 @@ namespace Services.Implementation
                 _unitOfWork.DonationEvents.Update(donationEvent);
                 await _unitOfWork.CompleteAsync();
                 
-                await SendStatusChangeNotificationAsync(donationEvent);
+                // Send real-time notifications for status change
+                await SendStatusChangeNotificationAsync(donationEvent, previousStatus);
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    id, donationEvent.Status, $"Donation event updated: {donationEvent.Status}");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 
                 var updatedDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(updatedDonationEvent);
@@ -527,6 +540,11 @@ namespace Services.Implementation
                 
                 _unitOfWork.DonationEvents.Update(donationEvent);
                 await _unitOfWork.CompleteAsync();
+                
+                // Send real-time notification
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    id, "Deleted", "Donation event has been deleted");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 
                 return new ApiResponse("Donation event deleted successfully");
             }
@@ -634,6 +652,11 @@ namespace Services.Implementation
                     });
                 }
                 
+                // Send real-time notification for appointment check-in
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    donationEvent.Id, "CheckedIn", "Appointment donor checked in successfully");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                
                 var result = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(result);
                 
@@ -718,6 +741,11 @@ namespace Services.Implementation
                         }
                     }
                     
+                    // Send real-time notification for failed health check
+                    await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                        donationEvent.Id, "HealthCheckFailed", $"Health check failed: {healthCheckDto.RejectionReason}");
+                    await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    
                     var updatedDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                     var donationEventResultDto = _mapper.Map<DonationEventDto>(updatedDonationEvent);
                     
@@ -778,6 +806,11 @@ namespace Services.Implementation
                         });
                     }
                 }
+                
+                // Send real-time notification for passed health check
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    donationEvent.Id, "HealthCheckPassed", "Health check passed - ready for donation");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 
                 var resultDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var resultDto = _mapper.Map<DonationEventDto>(resultDonationEvent);
@@ -842,6 +875,11 @@ namespace Services.Implementation
                         });
                     }
                 }
+                
+                // Send real-time notification for donation start
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    donationEvent.Id, "InProgress", "Blood donation process started");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 
                 var updatedDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(updatedDonationEvent);
@@ -925,6 +963,11 @@ namespace Services.Implementation
                         });
                     }
                 }
+                
+                // Send real-time notification for complication
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    donationEvent.Id, "Incomplete", $"Donation complication: {complicationDto.ComplicationType}");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 
                 var updatedDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(updatedDonationEvent);
@@ -1059,6 +1102,12 @@ namespace Services.Implementation
                     }
                 }
                 
+                // Send real-time notification for completed donation
+                await _realTimeNotificationService.NotifyDonationEventStatusChange(
+                    donationEvent.Id, "Completed", "Blood donation completed successfully");
+                await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                await _realTimeNotificationService.UpdateInventoryDashboard();
+                
                 var updatedDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(updatedDonationEvent);
                 
@@ -1127,25 +1176,13 @@ namespace Services.Implementation
         {
             try
             {
-                if (requestType == "BloodRequest")
+                // Chỉ sử dụng BloodRequest
+                var request = await _unitOfWork.BloodRequests.GetByIdAsync(requestId);
+                if (request != null)
                 {
-                    var request = await _unitOfWork.BloodRequests.GetByIdAsync(requestId);
-                    if (request != null)
-                    {
-                        request.Status = newStatus;
-                        _unitOfWork.BloodRequests.Update(request);
-                        await _unitOfWork.CompleteAsync();
-                    }
-                }
-                else if (requestType == "EmergencyRequest")
-                {
-                    var request = await _unitOfWork.EmergencyRequests.GetByIdAsync(requestId);
-                    if (request != null)
-                    {
-                        request.Status = newStatus;
-                        _unitOfWork.EmergencyRequests.Update(request);
-                        await _unitOfWork.CompleteAsync();
-                    }
+                    request.Status = newStatus;
+                    _unitOfWork.BloodRequests.Update(request);
+                    await _unitOfWork.CompleteAsync();
                 }
             }
             catch (Exception ex)

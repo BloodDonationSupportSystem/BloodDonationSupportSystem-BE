@@ -18,7 +18,6 @@ namespace BusinessObjects.Models
         public virtual ICollection<LocationCapacity> LocationCapacities { get; set; } = new List<LocationCapacity>();
         public virtual ICollection<LocationStaffAssignment> StaffAssignments { get; set; } = new List<LocationStaffAssignment>();
         public virtual ICollection<BloodRequest> BloodRequests { get; set; } = new List<BloodRequest>();
-        public virtual ICollection<EmergencyRequest> EmergencyRequests { get; set; } = new List<EmergencyRequest>();
         public virtual ICollection<DonationEvent> DonationEvents { get; set; } = new List<DonationEvent>();
         public virtual ICollection<DonationAppointmentRequest> AppointmentRequests { get; set; } = new List<DonationAppointmentRequest>();
         public virtual ICollection<DonationAppointmentRequest> ConfirmedAppointmentRequests { get; set; } = new List<DonationAppointmentRequest>();

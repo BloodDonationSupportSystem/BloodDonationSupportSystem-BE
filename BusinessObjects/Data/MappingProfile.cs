@@ -146,27 +146,6 @@ namespace BusinessObjects.Data
                 .ForMember(dest => dest.ComponentType, opt => opt.Ignore())
                 .ForMember(dest => dest.Location, opt => opt.Ignore());
 
-            // ========== EmergencyRequest mappings ==========
-            CreateMap<EmergencyRequest, EmergencyRequestDto>()
-                .ForMember(dest => dest.BloodGroupName, opt => opt.MapFrom(src => src.BloodGroup != null ? src.BloodGroup.GroupName : null))
-                .ForMember(dest => dest.ComponentTypeName, opt => opt.MapFrom(src => src.ComponentType != null ? src.ComponentType.Name : null));
-
-            CreateMap<CreateEmergencyRequestDto, EmergencyRequest>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
-                .ForMember(dest => dest.CreatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.LastUpdatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.DeletedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.BloodGroup, opt => opt.Ignore())
-                .ForMember(dest => dest.ComponentType, opt => opt.Ignore());
-
-            CreateMap<UpdateEmergencyRequestDto, EmergencyRequest>()
-                .ForMember(dest => dest.Id, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.LastUpdatedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.DeletedTime, opt => opt.Ignore())
-                .ForMember(dest => dest.BloodGroup, opt => opt.Ignore())
-                .ForMember(dest => dest.ComponentType, opt => opt.Ignore());
-
             // ========== BlogPost mappings ==========
             CreateMap<BlogPost, BlogPostDto>()
                 .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src => src.User != null ? src.User.LastName : null));

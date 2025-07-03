@@ -14,6 +14,29 @@ namespace BusinessObjects.Dtos
 
         public string Notes { get; set; }
     }
+
+    /// <summary>
+    /// DTO for searching nearby donors with availability filters
+    /// </summary>
+    public class NearbyDonorSearchDto
+    {
+        [Required(ErrorMessage = "Latitude is required")]
+        public double Latitude { get; set; }
+
+        [Required(ErrorMessage = "Longitude is required")]
+        public double Longitude { get; set; }
+
+        [Range(0.1, 500, ErrorMessage = "Radius must be between 0.1 and 500 kilometers")]
+        public double RadiusKm { get; set; } = 10.0;
+
+        public Guid? BloodGroupId { get; set; }
+        public bool? IsAvailable { get; set; } = true;
+        public bool? IsAvailableNow { get; set; } = true;
+        public bool? IsAvailableForEmergency { get; set; } = false;
+        public bool? ForEmergency { get; set; } = false;
+        public DateTimeOffset? AvailableDate { get; set; }
+        public bool? IsEligible { get; set; } = true;
+    }
     public class DonorProfileDto
     {
         public Guid Id { get; set; }
@@ -250,23 +273,6 @@ namespace BusinessObjects.Dtos
         
         [StringLength(50, ErrorMessage = "Preferred donation time cannot be longer than 50 characters")]
         public string PreferredDonationTime { get; set; }
-    }
-
-    public class NearbyDonorSearchDto
-    {
-        public double Latitude { get; set; }
-        
-        public double Longitude { get; set; }
-        
-        [Required(ErrorMessage = "Radius is required")]
-        [Range(0.1, 500, ErrorMessage = "Radius must be between 0.1 and 500 kilometers")]
-        public double RadiusKm { get; set; } = 10.0;
-        
-        public Guid? BloodGroupId { get; set; }
-        
-        public bool? IsAvailableNow { get; set; }
-        
-        public bool? IsAvailableForEmergency { get; set; }
     }
 
     public class DonorEligibilityResultDto

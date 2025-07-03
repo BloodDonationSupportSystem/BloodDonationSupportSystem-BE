@@ -47,8 +47,8 @@ namespace Repositories.Implementation
                             && i.ExpirationDate < sevenDaysLater)
                 .CountAsync();
 
-            var emergencyRequests = await _context.EmergencyRequests
-                .Where(r => r.Status == "Pending" && r.DeletedTime == null)
+            var emergencyRequests = await _context.BloodRequests
+                .Where(r => r.Status == "Pending" && r.IsEmergency && r.DeletedTime == null)
                 .CountAsync();
 
             var scheduledAppointments = await _context.DonationAppointmentRequests
@@ -307,73 +307,35 @@ namespace Repositories.Implementation
                     ? $"{request.User.FirstName} {request.User.LastName}"
                     : "Unknown";
 
+                string requestType = request.IsEmergency ? "khẩn cấp" : "thường";
+
                 switch (request.Status)
                 {
                     case "Pending":
-                        description = $"{requesterName} đã tạo yêu cầu máu mới";
+                        description = $"{requesterName} đã tạo yêu cầu máu {requestType} mới";
                         break;
                     case "Processing":
-                        description = $"Yêu cầu máu từ {requesterName} đang được xử lý";
+                        description = $"Yêu cầu máu {requestType} từ {requesterName} đang được xử lý";
                         break;
                     case "Fulfilled":
-                        description = $"Yêu cầu máu từ {requesterName} đã được đáp ứng";
+                        description = $"Yêu cầu máu {requestType} từ {requesterName} đã được đáp ứng";
                         break;
                     case "Cancelled":
-                        description = $"Yêu cầu máu từ {requesterName} đã bị hủy";
+                        description = $"Yêu cầu máu {requestType} từ {requesterName} đã bị hủy";
                         break;
                     default:
-                        description = $"Cập nhật trạng thái yêu cầu máu: {request.Status}";
+                        description = $"Cập nhật trạng thái yêu cầu máu {requestType}: {request.Status}";
                         break;
                 }
 
                 activities.Add(new RecentActivityDto
                 {
                     Id = request.Id,
-                    Type = "BloodRequest",
+                    Type = request.IsEmergency ? "EmergencyRequest" : "BloodRequest",
                     Description = description,
                     Timestamp = request.RequestDate,
                     UserId = request.RequestedBy,
                     UserName = requesterName
-                });
-            }
-
-            // Thêm hoạt động từ EmergencyRequests
-            var recentEmergencyRequests = await _context.EmergencyRequests
-                .Where(r => r.DeletedTime == null)
-                .OrderByDescending(r => r.LastUpdatedTime ?? r.CreatedTime)
-                .Take(count)
-                .ToListAsync();
-
-            foreach (var request in recentEmergencyRequests)
-            {
-                string description = "";
-
-                switch (request.Status)
-                {
-                    case "Pending":
-                        description = $"Yêu cầu máu khẩn cấp mới từ {request.HospitalName}";
-                        break;
-                    case "Processing":
-                        description = $"Yêu cầu máu khẩn cấp từ {request.HospitalName} đang được xử lý";
-                        break;
-                    case "Fulfilled":
-                        description = $"Yêu cầu máu khẩn cấp từ {request.HospitalName} đã được đáp ứng";
-                        break;
-                    case "Cancelled":
-                        description = $"Yêu cầu máu khẩn cấp từ {request.HospitalName} đã bị hủy";
-                        break;
-                    default:
-                        description = $"Cập nhật trạng thái yêu cầu máu khẩn cấp: {request.Status}";
-                        break;
-                }
-
-                activities.Add(new RecentActivityDto
-                {
-                    Id = request.Id,
-                    Type = "EmergencyRequest",
-                    Description = description,
-                    Timestamp = request.LastUpdatedTime ?? request.CreatedTime,
-                    UserName = request.ContactInfo
                 });
             }
 
@@ -537,46 +499,44 @@ namespace Repositories.Implementation
 
         public async Task<BloodRequestReportDto> GetBloodRequestReportAsync(DateTimeOffset startDate, DateTimeOffset endDate, Guid? bloodGroupId = null, Guid? locationId = null)
         {
-            // Lấy dữ liệu từ cả BloodRequests và EmergencyRequests
+            // Lấy dữ liệu từ bảng BloodRequests với phân loại thường và khẩn cấp
             var bloodRequestsQuery = _context.BloodRequests
                 .Where(r => r.RequestDate >= startDate && r.RequestDate <= endDate);
 
-            var emergencyRequestsQuery = _context.EmergencyRequests
-                .Where(r => r.RequestDate >= startDate
-                         && r.RequestDate <= endDate
-                         && r.DeletedTime == null);
+            var regularRequestsQuery = bloodRequestsQuery.Where(r => !r.IsEmergency);
+            var emergencyRequestsQuery = bloodRequestsQuery.Where(r => r.IsEmergency);
 
             if (bloodGroupId.HasValue)
             {
-                bloodRequestsQuery = bloodRequestsQuery.Where(r => r.BloodGroupId == bloodGroupId.Value);
+                regularRequestsQuery = regularRequestsQuery.Where(r => r.BloodGroupId == bloodGroupId.Value);
                 emergencyRequestsQuery = emergencyRequestsQuery.Where(r => r.BloodGroupId == bloodGroupId.Value);
             }
 
             if (locationId.HasValue)
             {
-                bloodRequestsQuery = bloodRequestsQuery.Where(r => r.LocationId == locationId.Value);
+                regularRequestsQuery = regularRequestsQuery.Where(r => r.LocationId == locationId.Value);
                 emergencyRequestsQuery = emergencyRequestsQuery.Where(r => r.LocationId == locationId.Value);
             }
 
-            var bloodRequests = await bloodRequestsQuery.ToListAsync();
+            var regularRequests = await regularRequestsQuery.ToListAsync();
             var emergencyRequests = await emergencyRequestsQuery.ToListAsync();
 
             // Thống kê trạng thái
-            var bloodRequestsByStatus = bloodRequests.GroupBy(r => r.Status).ToDictionary(g => g.Key, g => g.Count());
+            var regularRequestsByStatus = regularRequests.GroupBy(r => r.Status).ToDictionary(g => g.Key, g => g.Count());
             var emergencyRequestsByStatus = emergencyRequests.GroupBy(r => r.Status).ToDictionary(g => g.Key, g => g.Count());
 
-            int totalRequests = bloodRequests.Count + emergencyRequests.Count;
+            int totalRequests = regularRequests.Count + emergencyRequests.Count;
 
             int fulfilledRequests =
-                (bloodRequestsByStatus.ContainsKey("Fulfilled") ? bloodRequestsByStatus["Fulfilled"] : 0) +
+                (regularRequestsByStatus.ContainsKey("Fulfilled") ? regularRequestsByStatus["Fulfilled"] : 0) +
                 (emergencyRequestsByStatus.ContainsKey("Fulfilled") ? emergencyRequestsByStatus["Fulfilled"] : 0);
 
             int pendingRequests =
-                (bloodRequestsByStatus.ContainsKey("Pending") ? bloodRequestsByStatus["Pending"] : 0) +
+                (regularRequestsByStatus.ContainsKey("Pending") ? regularRequestsByStatus["Pending"] : 0) +
                 (emergencyRequestsByStatus.ContainsKey("Pending") ? emergencyRequestsByStatus["Pending"] : 0);
 
             int cancelledRequests =
-                (bloodRequestsByStatus.ContainsKey("Cancelled") ? bloodRequestsByStatus["Cancelled"] : 0) +
+                (regularRequestsByStatus.ContainsKey("Cancelled") ? regularRequestsByStatus["Cancelled"] : 0) +
                 (emergencyRequestsByStatus.ContainsKey("Cancelled") ? emergencyRequestsByStatus["Cancelled"] : 0);
 
             // Tạo báo cáo
@@ -597,7 +557,7 @@ namespace Repositories.Implementation
 
             foreach (var bloodGroup in bloodGroups)
             {
-                int count = bloodRequests.Count(r => r.BloodGroupId == bloodGroup.Id) +
+                int count = regularRequests.Count(r => r.BloodGroupId == bloodGroup.Id) +
                             emergencyRequests.Count(r => r.BloodGroupId == bloodGroup.Id);
 
                 if (count > 0)
@@ -620,7 +580,7 @@ namespace Repositories.Implementation
 
             foreach (var componentType in componentTypes)
             {
-                int count = bloodRequests.Count(r => r.ComponentTypeId == componentType.Id) +
+                int count = regularRequests.Count(r => r.ComponentTypeId == componentType.Id) +
                             emergencyRequests.Count(r => r.ComponentTypeId == componentType.Id);
 
                 if (count > 0)
@@ -640,13 +600,13 @@ namespace Repositories.Implementation
             // Thống kê theo mức độ ưu tiên
             var priorityStats = new List<RequestPriorityStatDto>();
 
-            if (bloodRequests.Count > 0)
+            if (regularRequests.Count > 0)
             {
                 priorityStats.Add(new RequestPriorityStatDto
                 {
                     Priority = "Normal",
-                    Count = bloodRequests.Count,
-                    Percentage = totalRequests > 0 ? Math.Round((double)bloodRequests.Count / totalRequests * 100, 2) : 0
+                    Count = regularRequests.Count,
+                    Percentage = totalRequests > 0 ? Math.Round((double)regularRequests.Count / totalRequests * 100, 2) : 0
                 });
             }
 
@@ -665,17 +625,7 @@ namespace Repositories.Implementation
             // Thống kê theo ngày
             var requestsByDate = new Dictionary<DateTimeOffset, int>();
 
-            foreach (var request in bloodRequests)
-            {
-                var date = request.RequestDate.Date;
-                if (!requestsByDate.ContainsKey(date))
-                {
-                    requestsByDate[date] = 0;
-                }
-                requestsByDate[date]++;
-            }
-
-            foreach (var request in emergencyRequests)
+            foreach (var request in regularRequests.Concat(emergencyRequests))
             {
                 var date = request.RequestDate.Date;
                 if (!requestsByDate.ContainsKey(date))
@@ -700,7 +650,7 @@ namespace Repositories.Implementation
 
             foreach (var location in locations)
             {
-                int count = bloodRequests.Count(r => r.LocationId == location.Id) +
+                int count = regularRequests.Count(r => r.LocationId == location.Id) +
                             emergencyRequests.Count(r => r.LocationId == location.Id);
 
                 if (count > 0)

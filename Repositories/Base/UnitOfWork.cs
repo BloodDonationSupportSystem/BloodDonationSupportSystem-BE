@@ -18,7 +18,6 @@ namespace Repositories.Base
         private IUserRepository _userRepository;
         private IBloodRequestRepository _bloodRequestRepository;
         private IDonationEventRepository _donationEventRepository;
-        private IEmergencyRequestRepository _emergencyRequestRepository;
         private IBloodInventoryRepository _bloodInventoryRepository;
         private IBlogPostRepository _blogPostRepository;
         private IDocumentRepository _documentRepository;
@@ -43,7 +42,6 @@ namespace Repositories.Base
         public IUserRepository Users => _userRepository ??= new UserRepository(_context);
         public IBloodRequestRepository BloodRequests => _bloodRequestRepository ??= new BloodRequestRepository(_context);
         public IDonationEventRepository DonationEvents => _donationEventRepository ??= new DonationEventRepository(_context);
-        public IEmergencyRequestRepository EmergencyRequests => _emergencyRequestRepository ??= new EmergencyRequestRepository(_context);
         public IBloodInventoryRepository BloodInventories => _bloodInventoryRepository ??= new BloodInventoryRepository(_context);
         public IBlogPostRepository BlogPosts => _blogPostRepository ??= new BlogPostRepository(_context);
         public IDocumentRepository Documents => _documentRepository ??= new DocumentRepository(_context);

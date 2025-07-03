@@ -15,14 +15,19 @@ namespace BloodDonationSupportSystem.Controllers
     public class DonationEventsController : BaseApiController
     {
         private readonly IDonationEventService _donationEventService;
+        private readonly IRealTimeNotificationService _realTimeNotificationService;
 
-        public DonationEventsController(IDonationEventService donationEventService)
+        public DonationEventsController(
+            IDonationEventService donationEventService,
+            IRealTimeNotificationService realTimeNotificationService)
         {
             _donationEventService = donationEventService;
+            _realTimeNotificationService = realTimeNotificationService;
         }
 
         // GET: api/DonationEvents
         [HttpGet]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(PagedApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetDonationEvents([FromQuery] DonationEventParameters parameters)
@@ -33,6 +38,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonationEvents/5
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin,Staff,Member")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
@@ -78,8 +84,6 @@ namespace BloodDonationSupportSystem.Controllers
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> CreateDonationEvent([FromBody] CreateDonationEventDto donationEventDto)
         {
@@ -97,8 +101,6 @@ namespace BloodDonationSupportSystem.Controllers
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> CreateWalkInDonationEvent([FromBody] CreateWalkInDonationEventDto walkInDto)
         {
@@ -116,8 +118,6 @@ namespace BloodDonationSupportSystem.Controllers
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> UpdateDonationEvent(Guid id, [FromBody] UpdateDonationEventDto donationEventDto)
@@ -133,10 +133,8 @@ namespace BloodDonationSupportSystem.Controllers
 
         // DELETE: api/DonationEvents/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse), 204)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> DeleteDonationEvent(Guid id)
@@ -145,101 +143,101 @@ namespace BloodDonationSupportSystem.Controllers
             return HandleResponse(response);
         }
 
-        // POST: api/DonationEvents/check-in
-        [HttpPost("check-in")]
+        // POST: api/DonationEvents/{id}/check-in
+        [HttpPost("{id}/check-in")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> CheckInAppointment([FromBody] CheckInAppointmentDto checkInDto)
+        public async Task<IActionResult> CheckInAppointment(Guid id, [FromBody] CheckInAppointmentDto checkInDto)
         {
             if (!ModelState.IsValid)
             {
                 return HandleResponse(HandleValidationErrors<DonationEventDto>(ModelState));
             }
+
+            checkInDto.AppointmentId = id;
 
             var response = await _donationEventService.CheckInAppointmentAsync(checkInDto);
             return HandleResponse(response);
         }
 
-        // POST: api/DonationEvents/health-check
-        [HttpPost("health-check")]
+        // POST: api/DonationEvents/{id}/health-check
+        [HttpPost("{id}/health-check")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> PerformHealthCheck([FromBody] DonorHealthCheckDto healthCheckDto)
+        public async Task<IActionResult> PerformHealthCheck(Guid id, [FromBody] DonorHealthCheckDto healthCheckDto)
         {
             if (!ModelState.IsValid)
             {
                 return HandleResponse(HandleValidationErrors<DonationEventDto>(ModelState));
             }
+
+            healthCheckDto.DonationEventId = id;
 
             var response = await _donationEventService.PerformHealthCheckAsync(healthCheckDto);
             return HandleResponse(response);
         }
 
-        // POST: api/DonationEvents/start
-        [HttpPost("start")]
+        // POST: api/DonationEvents/{id}/start-donation
+        [HttpPost("{id}/start-donation")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> StartDonationProcess([FromBody] StartDonationDto startDto)
+        public async Task<IActionResult> StartDonation(Guid id, [FromBody] StartDonationDto startDto)
         {
             if (!ModelState.IsValid)
             {
                 return HandleResponse(HandleValidationErrors<DonationEventDto>(ModelState));
             }
+
+            startDto.DonationEventId = id;
 
             var response = await _donationEventService.StartDonationProcessAsync(startDto);
             return HandleResponse(response);
         }
 
-        // POST: api/DonationEvents/complication
-        [HttpPost("complication")]
+        // POST: api/DonationEvents/{id}/complication
+        [HttpPost("{id}/complication")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> RecordComplication([FromBody] DonationComplicationDto complicationDto)
+        public async Task<IActionResult> RecordComplication(Guid id, [FromBody] DonationComplicationDto complicationDto)
         {
             if (!ModelState.IsValid)
             {
                 return HandleResponse(HandleValidationErrors<DonationEventDto>(ModelState));
             }
+
+            complicationDto.DonationEventId = id;
 
             var response = await _donationEventService.RecordDonationComplicationAsync(complicationDto);
             return HandleResponse(response);
         }
 
-        // POST: api/DonationEvents/complete
-        [HttpPost("complete")]
+        // POST: api/DonationEvents/{id}/complete
+        [HttpPost("{id}/complete")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(ApiResponse<DonationEventDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
-        [ProducesResponseType(typeof(ApiResponse), 401)]
-        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> CompleteDonation([FromBody] CompleteDonationDto completionDto)
+        public async Task<IActionResult> CompleteDonation(Guid id, [FromBody] CompleteDonationDto completionDto)
         {
             if (!ModelState.IsValid)
             {
                 return HandleResponse(HandleValidationErrors<DonationEventDto>(ModelState));
             }
+
+            completionDto.DonationEventId = id;
 
             var response = await _donationEventService.CompleteDonationAsync(completionDto);
             return HandleResponse(response);

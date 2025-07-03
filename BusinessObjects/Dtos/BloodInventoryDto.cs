@@ -25,6 +25,28 @@ namespace BusinessObjects.Dtos
         public DonationEventInfoDto DonationEvent { get; set; }
     }
 
+
+
+    // Helper DTO for inventory check results
+    public class InventoryCheckResultDto
+    {
+        public Guid RequestId { get; set; }
+        public int RequestedUnits { get; set; }
+        public int AvailableUnits { get; set; }
+        public bool HasSufficientInventory { get; set; }
+        public List<InventoryItemDto> InventoryItems { get; set; } = new List<InventoryItemDto>();
+    }
+
+    public class InventoryItemDto
+    {
+        public int Id { get; set; }
+        public string BloodGroupName { get; set; }
+        public string ComponentTypeName { get; set; }
+        public int QuantityUnits { get; set; }
+        public DateTimeOffset ExpirationDate { get; set; }
+        public int DaysUntilExpiration { get; set; }
+    }
+
     // Simplified DTO with essential donation event information
     public class DonationEventInfoDto
     {

@@ -17,7 +17,6 @@ namespace BusinessObjects.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<DonationEvent> DonationEvents { get; set; }
         public DbSet<DonorProfile> DonorProfiles { get; set; }
-        public DbSet<EmergencyRequest> EmergencyRequests { get; set; }
         public DbSet<Location> Locations { get; set; }
         public DbSet<LocationCapacity> LocationCapacities { get; set; }
         public DbSet<LocationStaffAssignment> LocationStaffAssignments { get; set; }
@@ -140,19 +139,6 @@ namespace BusinessObjects.Data
                 .HasForeignKey(dp => dp.BloodGroupId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Fix EmergencyRequest relationships - This was causing shadow property warnings
-            modelBuilder.Entity<EmergencyRequest>()
-                .HasOne(er => er.BloodGroup)
-                .WithMany()
-                .HasForeignKey(er => er.BloodGroupId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<EmergencyRequest>()
-                .HasOne(er => er.ComponentType)
-                .WithMany()
-                .HasForeignKey(er => er.ComponentTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             // Fix Notification relationships - This was causing shadow property warnings
             modelBuilder.Entity<Notification>()
                 .HasOne(n => n.User)
@@ -235,7 +221,7 @@ namespace BusinessObjects.Data
                 .HasIndex(bi => new { bi.BloodGroupId, bi.ComponentTypeId, bi.ExpirationDate, bi.Status });
 
             modelBuilder.Entity<BloodRequest>()
-                .HasIndex(br => new { br.BloodGroupId, br.ComponentTypeId, br.Status });
+                .HasIndex(br => new { br.BloodGroupId, br.ComponentTypeId, br.Status, br.IsEmergency });
 
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.RoleId);

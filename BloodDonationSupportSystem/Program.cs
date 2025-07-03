@@ -1,10 +1,12 @@
 using AutoMapper;
 using BusinessObjects.Data;
 using BusinessObjects.Models;
+using BusinessObjects.Dtos;
 using BloodDonationSupportSystem.Middleware;
 using BloodDonationSupportSystem.BackgroundServices;
 using BloodDonationSupportSystem.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -14,6 +16,7 @@ using Repositories.Interface;
 using Services.Implementation;
 using Services.Interface;
 using System.Text;
+using Shared.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,7 +52,30 @@ builder.Services.AddAuthentication(options =>
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig.Secret)),
             ClockSkew = TimeSpan.Zero // Thi?t l?p ClockSkew thành 0 ?? ng?n ch?n th?i gian xác th?c ???c n?i l?ng
         };
+
+        // Configure SignalR JWT authentication
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/notificationHub"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     }
+});
+
+// Add SignalR
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 });
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -73,6 +99,9 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 // Email Service
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Real-time Notification Service - register with the specific hub context
+builder.Services.AddScoped<IRealTimeNotificationService, RealTimeNotificationService>();
 
 // Location 
 builder.Services.AddScoped<ILocationRepository, LocationRepository>();
@@ -107,10 +136,6 @@ builder.Services.AddScoped<IBloodRequestService, BloodRequestService>();
 // DonationEvent
 builder.Services.AddScoped<IDonationEventRepository, DonationEventRepository>();
 builder.Services.AddScoped<IDonationEventService, DonationEventService>();
-
-// EmergencyRequest
-builder.Services.AddScoped<IEmergencyRequestRepository, EmergencyRequestRepository>();
-builder.Services.AddScoped<IEmergencyRequestService, EmergencyRequestService>();
 
 // BloodInventory
 builder.Services.AddScoped<IBloodInventoryRepository, BloodInventoryRepository>();
@@ -190,11 +215,12 @@ builder.Services.AddSwaggerGen(c =>
 // Add CORS policy
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowSignalR", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:3000")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials(); // This is required for SignalR with authentication
     });
 });
 
@@ -210,7 +236,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // Use CORS
-app.UseCors("AllowAll");
+app.UseCors("AllowSignalR");
 
 // Add JWT exception middleware
 app.UseJwtExceptionHandler();
@@ -220,5 +246,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<NotificationHub>("/notificationHub");
 
 app.Run();
