@@ -202,7 +202,7 @@ namespace Services.Implementation
                 var componentTypeId = bloodRequest.ComponentTypeId;
                 var requiredQuantity = bloodRequest.QuantityUnits;
                 
-                // Create a new donation event
+                // Create a new donation event - không còn kiểm tra inventory ở đây
                 var donationEvent = new DonationEvent
                 {
                     Id = Guid.NewGuid(),
@@ -217,68 +217,23 @@ namespace Services.Implementation
                     IsActive = true
                 };
                 
-                // Check if the request can be fulfilled from inventory
-                if (donationEventDto.CheckInventoryFirst)
-                {
-                    var availableInventory = await _unitOfWork.BloodInventories
-                        .FindAsync(i => i.BloodGroupId == bloodGroupId 
-                                      && i.ComponentTypeId == componentTypeId 
-                                      && i.Status == "Available" 
-                                      && i.ExpirationDate > DateTimeOffset.UtcNow);
-                    
-                    var compatibleInventory = availableInventory.FirstOrDefault();
-                    
-                    if (compatibleInventory != null)
-                    {
-                        donationEvent.InventoryId = compatibleInventory.Id;
-                        donationEvent.Status = "CompletedFromInventory";
-                        donationEvent.CompletedTime = DateTimeOffset.UtcNow;
-                        
-                        // Update inventory status
-                        compatibleInventory.Status = "Reserved";
-                        _unitOfWork.BloodInventories.Update(compatibleInventory);
-                        
-                        // Update blood request status
-                        bloodRequest.Status = "Fulfilled";
-                        _unitOfWork.BloodRequests.Update(bloodRequest);
-                    }
-                }
+                // Không còn logic CheckInventoryFirst - việc fulfill từ inventory được xử lý ở BloodRequestService
                 
                 // Save the donation event
                 await _unitOfWork.DonationEvents.AddAsync(donationEvent);
                 await _unitOfWork.CompleteAsync();
                 
                 // Send real-time notifications
-                if (donationEvent.Status == "Created")
+                await SendDonationEventNotificationAsync(donationEvent, "New donation event created and awaiting donor assignment");
+                
+                // Send realtime notification to staff for emergency requests
+                if (bloodRequest.IsEmergency)
                 {
-                    await SendDonationEventNotificationAsync(donationEvent, "New donation event created and awaiting donor assignment");
-                    
-                    // Send realtime notification to staff for emergency requests
-                    if (bloodRequest.IsEmergency)
-                    {
-                        await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
-                            bloodRequest.Id, 
-                            "Processing", 
-                            "Emergency request is being processed - donation event created");
-                        await _realTimeNotificationService.UpdateEmergencyDashboard();
-                    }
-                }
-                else if (donationEvent.Status == "CompletedFromInventory")
-                {
-                    await SendDonationEventNotificationAsync(donationEvent, "Request fulfilled from existing blood inventory");
-                    
-                    // Send realtime notification for fulfilled request
-                    if (bloodRequest.IsEmergency)
-                    {
-                        await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
-                            bloodRequest.Id, 
-                            "Fulfilled", 
-                            "Emergency request fulfilled from existing inventory");
-                        await _realTimeNotificationService.UpdateEmergencyDashboard();
-                    }
-                    
-                    await _realTimeNotificationService.NotifyBloodRequestStatusChange(
-                        bloodRequest.Id, "Fulfilled", "Request fulfilled from inventory");
+                    await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                        bloodRequest.Id, 
+                        "Processing", 
+                        "Emergency request is being processed - donation event created");
+                    await _realTimeNotificationService.UpdateEmergencyDashboard();
                 }
                 
                 await _realTimeNotificationService.UpdateBloodRequestDashboard();
@@ -304,29 +259,29 @@ namespace Services.Implementation
         {
             try
             {
-                // 1. Kiểm tra người hiến máu đã có trong hệ thống chưa
-                var users = await _unitOfWork.Users.FindAsync(u => 
+                // 1. Kiểm tra người hiến máu đã có trong hệ thống chưa (chỉ dựa trên số điện thoại)
+                var existingUser = await _unitOfWork.Users.FindAsync(u => 
                     u.PhoneNumber == walkInDto.DonorInfo.PhoneNumber);
-                var existingUser = users.FirstOrDefault();
+                var user = existingUser.FirstOrDefault();
                 
-                User user;
                 DonorProfile donorProfile;
                 bool isNewUser = false;
 
-                if (existingUser != null)
+                if (user != null)
                 {
-                    user = existingUser;
+                    // Người dùng đã tồn tại - cập nhật thông tin donor profile
                     donorProfile = await _unitOfWork.DonorProfiles.GetByUserIdAsync(user.Id);
                     
                     if (donorProfile == null)
                     {
+                        // User tồn tại nhưng chưa có donor profile
                         donorProfile = new DonorProfile
                         {
                             Id = Guid.NewGuid(),
                             UserId = user.Id,
                             BloodGroupId = walkInDto.DonorInfo.BloodGroupId,
                             DateOfBirth = walkInDto.DonorInfo.DateOfBirth,
-                            Address = walkInDto.DonorInfo.Address,
+                            Address = walkInDto.DonorInfo.Address ?? string.Empty,
                             LastDonationDate = walkInDto.DonorInfo.LastDonationDate,
                             CreatedTime = DateTimeOffset.UtcNow
                         };
@@ -335,6 +290,7 @@ namespace Services.Implementation
                     }
                     else
                     {
+                        // Cập nhật thông tin donor profile nếu cần
                         if (donorProfile.BloodGroupId != walkInDto.DonorInfo.BloodGroupId)
                         {
                             donorProfile.BloodGroupId = walkInDto.DonorInfo.BloodGroupId;
@@ -347,11 +303,45 @@ namespace Services.Implementation
                             donorProfile.LastDonationDate = walkInDto.DonorInfo.LastDonationDate;
                         }
                         
+                        if (!string.IsNullOrEmpty(walkInDto.DonorInfo.Address))
+                        {
+                            donorProfile.Address = walkInDto.DonorInfo.Address;
+                        }
+                        
                         _unitOfWork.DonorProfiles.Update(donorProfile);
+                    }
+                    
+                    // Cập nhật thông tin cơ bản của user nếu cần
+                    bool userUpdated = false;
+                    if (!string.IsNullOrEmpty(walkInDto.DonorInfo.FirstName) && user.FirstName != walkInDto.DonorInfo.FirstName)
+                    {
+                        user.FirstName = walkInDto.DonorInfo.FirstName;
+                        userUpdated = true;
+                    }
+                    if (!string.IsNullOrEmpty(walkInDto.DonorInfo.LastName) && user.LastName != walkInDto.DonorInfo.LastName)
+                    {
+                        user.LastName = walkInDto.DonorInfo.LastName;
+                        userUpdated = true;
+                    }
+                    if (!string.IsNullOrEmpty(walkInDto.DonorInfo.Email) && user.Email != walkInDto.DonorInfo.Email)
+                    {
+                        // Kiểm tra email mới có bị trùng không
+                        var emailExists = await _unitOfWork.Users.FindAsync(u => u.Email == walkInDto.DonorInfo.Email && u.Id != user.Id);
+                        if (!emailExists.Any())
+                        {
+                            user.Email = walkInDto.DonorInfo.Email;
+                            userUpdated = true;
+                        }
+                    }
+                    
+                    if (userUpdated)
+                    {
+                        _unitOfWork.Users.Update(user);
                     }
                 }
                 else
                 {
+                    // Tạo user mới cho walk-in donor
                     isNewUser = true;
                     
                     var memberRole = await _unitOfWork.Roles.GetByNameAsync("Member");
@@ -362,15 +352,42 @@ namespace Services.Implementation
                             "Member role not found in the system");
                     }
                     
+                    // Tạo UserName unique cho walk-in user
+                    string uniqueUserName = $"walkin_{DateTimeOffset.UtcNow:yyyyMMdd}_{Guid.NewGuid().ToString("N")[..8]}";
+                    
+                    // Đảm bảo UserName không bị trùng (rất hiếm khi xảy ra nhưng vẫn cần check)
+                    var existingUserName = await _unitOfWork.Users.FindAsync(u => u.UserName == uniqueUserName);
+                    while (existingUserName.Any())
+                    {
+                        uniqueUserName = $"walkin_{DateTimeOffset.UtcNow:yyyyMMdd}_{Guid.NewGuid().ToString("N")[..8]}";
+                        existingUserName = await _unitOfWork.Users.FindAsync(u => u.UserName == uniqueUserName);
+                    }
+                    
+                    // Kiểm tra email có bị trùng không (nếu có email)
+                    if (!string.IsNullOrEmpty(walkInDto.DonorInfo.Email))
+                    {
+                        var emailExists = await _unitOfWork.Users.FindAsync(u => u.Email == walkInDto.DonorInfo.Email);
+                        if (emailExists.Any())
+                        {
+                            return new ApiResponse<DonationEventDto>(
+                                HttpStatusCode.Conflict,
+                                $"Email '{walkInDto.DonorInfo.Email}' is already registered. Please use different contact information.");
+                        }
+                    }
+                    
                     user = new User
                     {
                         Id = Guid.NewGuid(),
-                        FirstName = walkInDto.DonorInfo.FirstName,
-                        LastName = walkInDto.DonorInfo.LastName,
+                        UserName = uniqueUserName,
+                        FirstName = walkInDto.DonorInfo.FirstName ?? string.Empty,
+                        LastName = walkInDto.DonorInfo.LastName ?? string.Empty,
                         PhoneNumber = walkInDto.DonorInfo.PhoneNumber,
-                        Email = walkInDto.DonorInfo.Email,
+                        Email = walkInDto.DonorInfo.Email, // Có thể null
+                        Password = "WALK_IN_USER", // Mật khẩu placeholder cho walk-in user
                         RoleId = memberRole.Id,
-                        CreatedTime = DateTimeOffset.UtcNow
+                        CreatedTime = DateTimeOffset.UtcNow,
+                        IsActivated = true,
+                        LastLogin = DateTimeOffset.UtcNow
                     };
                     
                     await _unitOfWork.Users.AddAsync(user);
@@ -381,7 +398,7 @@ namespace Services.Implementation
                         UserId = user.Id,
                         BloodGroupId = walkInDto.DonorInfo.BloodGroupId,
                         DateOfBirth = walkInDto.DonorInfo.DateOfBirth,
-                        Address = walkInDto.DonorInfo.Address,
+                        Address = walkInDto.DonorInfo.Address ?? string.Empty,
                         LastDonationDate = walkInDto.DonorInfo.LastDonationDate,
                         CreatedTime = DateTimeOffset.UtcNow
                     };
@@ -408,7 +425,7 @@ namespace Services.Implementation
                 await _unitOfWork.DonationEvents.AddAsync(donationEvent);
                 await _unitOfWork.CompleteAsync();
                 
-                // Gửi thông báo nếu là người dùng cũ
+                // Gửi thông báo nếu là người dùng cũ và có email
                 if (!isNewUser && !string.IsNullOrEmpty(user.Email))
                 {
                     await _notificationService.CreateNotificationAsync(new CreateNotificationDto
@@ -1059,7 +1076,7 @@ namespace Services.Implementation
                     BloodGroupId = donationEvent.BloodGroupId,
                     ComponentTypeId = donationEvent.ComponentTypeId,
                     QuantityUnits = (int)completionDto.QuantityUnits,
-                    Status = "Processing",
+                    Status = "Available",
                     InventorySource = "Donation",
                     ExpirationDate = CalculateExpirationDate(completionDto.DonationDate, donationEvent.ComponentTypeId)
                 });

@@ -65,9 +65,6 @@ namespace BusinessObjects.Dtos
         public string? ComplicationDetails { get; set; }
         public string? ActionTaken { get; set; }
         
-        // Inventory Connection
-        public Guid? InventoryId { get; set; }
-        
         // Timestamps
         public DateTimeOffset CreatedTime { get; set; }
         public DateTimeOffset? LastUpdatedTime { get; set; }
@@ -94,8 +91,6 @@ namespace BusinessObjects.Dtos
         
         [StringLength(1000, ErrorMessage = "Notes cannot exceed 1000 characters")]
         public string? Notes { get; set; }
-        
-        public bool CheckInventoryFirst { get; set; } = true;
     }
     
     /// <summary>

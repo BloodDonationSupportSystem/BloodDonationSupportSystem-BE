@@ -19,5 +19,12 @@ namespace BusinessObjects.Models
         public virtual ComponentType ComponentType { get; set; }
         public Guid DonationEventId { get; set; } = Guid.Empty;
         public virtual DonationEvent DonationEvent { get; set; }
+        // New reference to blood request
+        public Guid? FulfilledRequestId { get; set; }
+        public DateTimeOffset? FulfilledDate { get; set; }
+        public string? FulfillmentNotes { get; set; }
+
+        // Optional navigation property
+        public virtual BloodRequest FulfilledRequest { get; set; }
     }
 }

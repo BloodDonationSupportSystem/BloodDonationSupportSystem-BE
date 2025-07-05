@@ -38,15 +38,14 @@ namespace BusinessObjects.Models
         [ForeignKey("StaffId")]
         public virtual User Staff { get; set; }
         
-        // Thông tin kho máu (nếu đáp ứng từ kho)
-        public int? InventoryId { get; set; }
-        [ForeignKey("InventoryId")]
-        public virtual BloodInventory Inventory { get; set; }
+        // Loại bỏ inventory relationship vì DonationEvent không còn quản lý inventory trực tiếp
+        // [ForeignKey("InventoryId")]
+        // public virtual BloodInventory Inventory { get; set; }
         
         // Thông tin trạng thái
         [Required]
         [StringLength(50)]
-        public string Status { get; set; } = "Created"; // Created, DonorAssigned, Scheduled, CheckedIn, HealthCheckPassed, HealthCheckFailed, InProgress, Incomplete, Completed, CompletedFromInventory, Cancelled
+        public string Status { get; set; } = "Created"; // Created, DonorAssigned, Scheduled, CheckedIn, HealthCheckPassed, HealthCheckFailed, InProgress, Incomplete, Completed, Cancelled
         
         [StringLength(255)]
         public string StatusDescription { get; set; } = string.Empty;

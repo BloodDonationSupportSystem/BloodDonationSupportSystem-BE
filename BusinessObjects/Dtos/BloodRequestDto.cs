@@ -4,6 +4,24 @@ using System.ComponentModel.DataAnnotations;
 
 namespace BusinessObjects.Dtos
 {
+    public class RecordBloodRequestPickupDto
+    {
+        [Required]
+        public string RecipientName { get; set; }
+
+        [Required]
+        public string RecipientContact { get; set; }
+
+        public string PickupNotes { get; set; }
+    }
+
+    public class FulfillBloodRequestDto
+    {
+        [Required]
+        public Guid StaffId { get; set; }
+
+        public string? Notes { get; set; }
+    }
     public class BloodRequestDto
     {
         public Guid Id { get; set; }
@@ -45,6 +63,14 @@ namespace BusinessObjects.Dtos
         
         // Trạng thái hoạt động
         public bool IsActive { get; set; }
+        
+        // Fulfillment tracking - Thêm các trường mới
+        public DateTimeOffset? FulfilledDate { get; set; }
+        public Guid? FulfilledByStaffId { get; set; }
+        public string FulfilledByStaffName { get; set; }
+        public bool IsPickedUp { get; set; }
+        public DateTimeOffset? PickupDate { get; set; }
+        public string PickupNotes { get; set; }
         
         // Thông tin audit từ BaseEntity
         public DateTimeOffset? CreatedTime { get; set; }
@@ -133,9 +159,7 @@ namespace BusinessObjects.Dtos
         [Required(ErrorMessage = "Quantity is required")]
         [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0")]
         public int QuantityUnits { get; set; }
-        
-        [Required(ErrorMessage = "Status is required")]
-        public string Status { get; set; }
+        public string? Status { get; set; }
         
         // Phân biệt loại yêu cầu
         public bool IsEmergency { get; set; }
@@ -168,9 +192,9 @@ namespace BusinessObjects.Dtos
         [StringLength(500, ErrorMessage = "Address cannot be longer than 500 characters")]
         public string Address { get; set; } = string.Empty;
         
-        public string Latitude { get; set; } = string.Empty;
+        public string? Latitude { get; set; } = string.Empty;
         
-        public string Longitude { get; set; } = string.Empty;
+        public string? Longitude { get; set; } = string.Empty;
         
         // Ghi chú y tế
         [StringLength(1000, ErrorMessage = "Medical notes cannot be longer than 1000 characters")]

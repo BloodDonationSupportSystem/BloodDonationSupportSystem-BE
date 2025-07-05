@@ -63,9 +63,11 @@ namespace BloodDonationSupportSystem.Controllers
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> FulfillFromInventory(Guid id)
+        public async Task<IActionResult> FulfillFromInventory(
+            Guid id,
+            [FromBody] FulfillBloodRequestDto fulfillDto)
         {
-            var response = await _bloodRequestService.FulfillBloodRequestFromInventoryAsync(id);
+            var response = await _bloodRequestService.FulfillBloodRequestFromInventoryAsync(id, fulfillDto);
 
             return HandleResponse(response);
         }
@@ -211,7 +213,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/BloodRequests/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin,Staff")] // Admin và Staff có quy?n c?p nh?t yêu c?u máu
+        [Authorize(Roles = "Admin,Staff,Member")] // Admin và Staff có quy?n c?p nh?t yêu c?u máu
         [ProducesResponseType(typeof(ApiResponse<BloodRequestDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 404)]

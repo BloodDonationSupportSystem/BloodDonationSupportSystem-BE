@@ -14,7 +14,9 @@ namespace Services.Interface
         Task<ApiResponse<BloodRequestDto>> CreateBloodRequestAsync(CreateBloodRequestDto bloodRequestDto);
         Task<ApiResponse<BloodRequestDto>> UpdateBloodRequestAsync(Guid id, UpdateBloodRequestDto bloodRequestDto);
         Task<ApiResponse> DeleteBloodRequestAsync(Guid id);
-        Task<ApiResponse<BloodRequestDto>> FulfillBloodRequestFromInventoryAsync(Guid requestId);
+        Task<ApiResponse<BloodRequestDto>> FulfillBloodRequestFromInventoryAsync(
+            Guid requestId,
+            FulfillBloodRequestDto fulfillDto);
         Task<ApiResponse<IEnumerable<BloodRequestDto>>> GetBloodRequestsByDistanceAsync(double latitude, double longitude, double radiusKm, Guid? bloodGroupId = null, string status = null);
         Task<PagedApiResponse<BloodRequestDto>> GetPagedBloodRequestsByDistanceAsync(double latitude, double longitude, double radiusKm, BloodRequestParameters parameters);
         

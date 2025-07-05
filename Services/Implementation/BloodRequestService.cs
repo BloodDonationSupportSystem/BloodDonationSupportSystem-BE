@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -360,6 +360,10 @@ namespace Services.Implementation
                     // Medical notes
                     MedicalNotes = bloodRequestDto.MedicalNotes ?? string.Empty,
                     
+                    // Fulfillment tracking fields - Set default values
+                    IsPickedUp = false,
+                    PickupNotes = string.Empty,
+                    
                     // Base entity fields
                     CreatedTime = DateTimeOffset.UtcNow,
                     IsActive = true
@@ -488,12 +492,16 @@ namespace Services.Implementation
                     
                     // Location information
                     LocationId = publicRequestDto.LocationId,
-                    Address = publicRequestDto.Address,
-                    Latitude = publicRequestDto.Latitude,
-                    Longitude = publicRequestDto.Longitude,
+                    Address = publicRequestDto.Address ?? string.Empty,
+                    Latitude = publicRequestDto.Latitude ?? string.Empty,
+                    Longitude = publicRequestDto.Longitude ?? string.Empty,
                     
                     // Medical notes
                     MedicalNotes = publicRequestDto.MedicalNotes ?? string.Empty,
+                    
+                    // Fulfillment tracking fields - Set default values
+                    IsPickedUp = false,
+                    PickupNotes = string.Empty,
                     
                     // Base entity fields
                     CreatedTime = DateTimeOffset.UtcNow,
@@ -559,11 +567,22 @@ namespace Services.Implementation
         /// Checks inventory and fulfills a blood request in a single operation.
         /// This uses the location from the blood request itself and automatically selects inventory.
         /// </summary>
-        public async Task<ApiResponse<BloodRequestDto>> FulfillBloodRequestFromInventoryAsync(Guid requestId)
+        public async Task<ApiResponse<BloodRequestDto>> FulfillBloodRequestFromInventoryAsync(
+            Guid requestId,
+            FulfillBloodRequestDto fulfillDto)
         {
             try
             {
                 _logger?.LogInformation("Fulfilling blood request from inventory. RequestId: {RequestId}", requestId);
+
+                // Step 0: Validate staff exists
+                var staff = await _unitOfWork.Users.GetByIdAsync(fulfillDto.StaffId);
+                if (staff == null)
+                {
+                    return new ApiResponse<BloodRequestDto>(
+                        HttpStatusCode.BadRequest,
+                        $"Staff with ID {fulfillDto.StaffId} not found");
+                }
 
                 // Step 1: Check if the blood request exists
                 var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(requestId);
@@ -587,7 +606,7 @@ namespace Services.Implementation
                 var availableInventory = await _unitOfWork.BloodInventories.FindAsync(i =>
                     i.BloodGroupId == bloodRequest.BloodGroupId &&
                     i.ComponentTypeId == bloodRequest.ComponentTypeId &&
-                    i.Status == "Processing" &&
+                    i.Status == "Available" &&
                     i.ExpirationDate > DateTimeOffset.UtcNow);
 
                 // Calculate total available units
@@ -604,57 +623,72 @@ namespace Services.Implementation
                         $"Insufficient inventory. Only {totalUnits} units available for requested {bloodRequest.QuantityUnits} units");
                 }
 
-                // Step 5: Create a donation event with status "CompletedFromInventory"
-                var donationEvent = new BusinessObjects.Models.DonationEvent
+                // Step 5: Update blood request status
+                string previousStatus = bloodRequest.Status;
+                bloodRequest.Status = "Fulfilled";
+                bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
+                bloodRequest.FulfilledDate = DateTimeOffset.UtcNow;
+                bloodRequest.FulfilledByStaffId = fulfillDto.StaffId;
+
+                var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+                var staffName = $"{staff.FirstName} {staff.LastName}".Trim();
+
+                if (!string.IsNullOrEmpty(fulfillDto.Notes))
                 {
-                    Id = Guid.NewGuid(),
-                    RequestId = bloodRequest.Id,
-                    RequestType = "BloodRequest",
-                    BloodGroupId = bloodRequest.BloodGroupId,
-                    ComponentTypeId = bloodRequest.ComponentTypeId,
-                    LocationId = locationId,
-                    Status = "CompletedFromInventory",
-                    Notes = "Fulfilled from inventory",
-                    CreatedTime = DateTimeOffset.UtcNow,
-                    CompletedTime = DateTimeOffset.UtcNow,
-                    IsActive = true
-                };
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") +
+                        $"<div class='fulfillment-note'>" +
+                        $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                        $"<span class='action'>Đã đáp ứng yêu cầu</span> bởi <em>{staffName}</em><br/>" +
+                        $"<span class='note-content'>{fulfillDto.Notes}</span>" +
+                        $"</div>";
+                }
+                else
+                {
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") +
+                        $"<div class='fulfillment-note'>" +
+                        $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                        $"<span class='action'>Đã đáp ứng yêu cầu</span> bởi <em>{staffName}</em>" +
+                        $"</div>";
+                }
+
+                _unitOfWork.BloodRequests.Update(bloodRequest);
 
                 // Step 6: Update inventory items
                 int unitsNeeded = bloodRequest.QuantityUnits;
                 int unitsAllocated = 0;
 
-                var sortedInventory = availableInventory.OrderBy(i => i.ExpirationDate).ToList(); // Prioritize units expiring sooner
+                var sortedInventory = availableInventory.OrderBy(i => i.ExpirationDate).ToList();
+
+                // Create a tracking log for this fulfillment
+                var inventoryUsedInfo = new List<string>();
 
                 foreach (var item in sortedInventory)
                 {
                     if (unitsAllocated >= unitsNeeded)
                         break;
 
-                    // Track which inventory item was used for the first one
-                    if (unitsAllocated == 0)
-                    {
-                        donationEvent.InventoryId = item.Id;
-                    }
+                    // Update inventory status and use new fields
+                    item.Status = "Used";
+                    item.FulfilledRequestId = bloodRequest.Id;
+                    item.FulfilledDate = DateTimeOffset.UtcNow;
+                    item.FulfillmentNotes = $"Used to fulfill blood request {bloodRequest.Id}";
 
-                    // Update inventory status
-                    item.Status = "Reserved";
                     _unitOfWork.BloodInventories.Update(item);
+
+                    // Add to tracking information
+                    inventoryUsedInfo.Add($"#{item.Id} ({item.QuantityUnits} đơn vị)");
 
                     unitsAllocated += item.QuantityUnits;
                 }
 
-                // Step 7: Update blood request status
-                string previousStatus = bloodRequest.Status;
-                bloodRequest.Status = "Fulfilled";
-                bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
+                // Add detailed inventory usage to request notes
+                var inventoryUsageSummary = string.Join(", ", inventoryUsedInfo);
+                bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") +
+                    $"<div class='inventory-info'>" +
+                    $"<strong>Kho máu sử dụng:</strong> {inventoryUsageSummary}" +
+                    $"</div>";
 
-                _unitOfWork.BloodRequests.Update(bloodRequest);
-
-                // Step 8: Save the donation event
-                await _unitOfWork.DonationEvents.AddAsync(donationEvent);
-
-                // Step 9: Commit all changes
+                // Step 7: Commit all changes
                 await _unitOfWork.CompleteAsync();
 
                 _logger?.LogInformation("Blood request {RequestId} fulfilled successfully from inventory", bloodRequest.Id);
@@ -683,6 +717,106 @@ namespace Services.Implementation
             {
                 _logger?.LogError(ex, "Error occurred while fulfilling blood request from inventory. RequestId: {RequestId}", requestId);
                 return new ApiResponse<BloodRequestDto>(HttpStatusCode.InternalServerError, $"Error occurred: {ex.Message}");
+            }
+        }
+
+
+
+        public async Task<ApiResponse<BloodRequestDto>> RecordBloodRequestPickupAsync(
+            Guid id, RecordBloodRequestPickupDto pickupDto)
+        {
+            try
+            {
+                _logger?.LogInformation("Recording blood request pickup. ID: {RequestId}", id);
+
+                var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(id);
+                if (bloodRequest == null)
+                    return new ApiResponse<BloodRequestDto>(HttpStatusCode.NotFound,
+                        $"Blood request with ID {id} not found");
+
+                // Check if request is fulfilled
+                if (bloodRequest.Status != "Fulfilled")
+                {
+                    return new ApiResponse<BloodRequestDto>(HttpStatusCode.BadRequest,
+                        "Only fulfilled blood requests can be picked up");
+                }
+
+                // Check if already picked up
+                if (bloodRequest.IsPickedUp)
+                {
+                    return new ApiResponse<BloodRequestDto>(HttpStatusCode.BadRequest,
+                        "Blood request has already been picked up");
+                }
+
+                // Update blood request pickup status
+                bloodRequest.IsPickedUp = true;
+                bloodRequest.PickupDate = DateTimeOffset.UtcNow;
+                bloodRequest.PickupNotes = pickupDto.PickupNotes ?? string.Empty;
+                bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
+
+                _unitOfWork.BloodRequests.Update(bloodRequest);
+
+                // **QUAN TRỌNG**: Cập nhật inventory status khi pickup
+                var usedInventoryItems = await _unitOfWork.BloodInventories.FindAsync(i => 
+                    i.FulfilledRequestId == id && 
+                    i.Status == "Used");
+
+                int dispatchedCount = 0;
+                foreach (var inventoryItem in usedInventoryItems)
+                {
+                    // Chuyển từ "Used" sang "Dispatched" khi pickup
+                    inventoryItem.Status = "Dispatched";
+                    inventoryItem.FulfillmentNotes = (inventoryItem.FulfillmentNotes ?? "") + 
+                        $"\n[{DateTimeOffset.UtcNow}] DISPATCHED: Blood picked up by {pickupDto.RecipientName ?? "recipient"}";
+                    
+                    _unitOfWork.BloodInventories.Update(inventoryItem);
+                    dispatchedCount++;
+                }
+
+                var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+
+                // Add pickup info to request notes
+                bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + 
+                    $"<div class='pickup-note'>" +
+                    $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                    $"<span class='action'>Đã lấy máu</span><br/>" +
+                    $"<strong>Người nhận:</strong> {pickupDto.RecipientName}<br/>" +
+                    $"<strong>Liên hệ:</strong> {pickupDto.RecipientContact}<br/>" +
+                    $"<strong>Số đơn vị xuất kho:</strong> {dispatchedCount} đơn vị" +
+                    (!string.IsNullOrEmpty(pickupDto.PickupNotes) ? $"<br/><strong>Ghi chú:</strong> {pickupDto.PickupNotes}" : "") +
+                    $"</div>";
+
+                await _unitOfWork.CompleteAsync();
+
+                _logger?.LogInformation("Recorded pickup for blood request {RequestId}. {ItemCount} inventory items dispatched", 
+                    id, dispatchedCount);
+
+                // Send real-time notifications
+                if (_realTimeNotificationService != null)
+                {
+                    await _realTimeNotificationService.NotifyBloodRequestStatusChange(
+                        id, "PickedUp", $"Blood request completed - {dispatchedCount} units dispatched to {pickupDto.RecipientName}");
+                    
+                    if (bloodRequest.IsEmergency)
+                    {
+                        await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                            id, "PickedUp", "Emergency blood request completed");
+                        await _realTimeNotificationService.UpdateEmergencyDashboard();
+                    }
+                    
+                    await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    await _realTimeNotificationService.UpdateInventoryDashboard();
+                }
+
+                return new ApiResponse<BloodRequestDto>(
+                    MapToDto(bloodRequest),
+                    $"Pickup recorded successfully - {dispatchedCount} inventory items dispatched to {pickupDto.RecipientName}");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error recording pickup for request {RequestId}", id);
+                return new ApiResponse<BloodRequestDto>(
+                    HttpStatusCode.InternalServerError, ex.Message);
             }
         }
 
@@ -718,7 +852,7 @@ namespace Services.Implementation
 
                 // Update blood request
                 bloodRequest.QuantityUnits = bloodRequestDto.QuantityUnits;
-                bloodRequest.Status = bloodRequestDto.Status;
+                bloodRequest.Status = bloodRequestDto.Status ?? bloodRequest.Status;
                 bloodRequest.IsEmergency = bloodRequestDto.IsEmergency;
                 
                 // Regular request fields
@@ -796,7 +930,7 @@ namespace Services.Implementation
                 }
 
                 // Validate the status value
-                var validStatuses = new[] { "Pending", "Processing", "Fulfilled", "Cancelled", "Expired" };
+                var validStatuses = new[] { "Pending", "Processing", "Fulfilled", "Cancelled", "Expired", "Picked Up" };
                 if (!validStatuses.Contains(status))
                 {
                     _logger?.LogWarning("Invalid status value: {Status}", status);
@@ -807,7 +941,124 @@ namespace Services.Implementation
 
                 // Store previous status for notifications or logging
                 string previousStatus = bloodRequest.Status;
+
+                // **XỬ LÝ ĐẶC BIỆT CHO STATUS "Picked Up"**
+                if (status == "Picked Up")
+                {
+                    // Kiểm tra xem request đã được fulfilled chưa
+                    if (previousStatus != "Fulfilled")
+                    {
+                        _logger?.LogWarning("Cannot set status to 'Picked Up' for request {RequestId} with status {CurrentStatus}", id, previousStatus);
+                        return new ApiResponse<BloodRequestDto>(
+                            HttpStatusCode.BadRequest,
+                            "Only fulfilled blood requests can be marked as picked up");
+                    }
+
+                    // Kiểm tra xem đã được picked up chưa
+                    if (bloodRequest.IsPickedUp)
+                    {
+                        _logger?.LogWarning("Blood request {RequestId} has already been picked up", id);
+                        return new ApiResponse<BloodRequestDto>(
+                            HttpStatusCode.BadRequest,
+                            "Blood request has already been picked up");
+                    }
+
+                    // Thực hiện logic pickup
+                    bloodRequest.Status = status;
+                    bloodRequest.IsPickedUp = true;
+                    bloodRequest.PickupDate = DateTimeOffset.UtcNow;
+                    bloodRequest.PickupNotes = "Status updated to Picked Up via status update";
+                    bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
+
+                    // **QUAN TRỌNG**: Cập nhật inventory status khi pickup
+                    var usedInventoryItems = await _unitOfWork.BloodInventories.FindAsync(i => 
+                        i.FulfilledRequestId == id && 
+                        i.Status == "Used");
+
+                    int dispatchedCount = 0;
+                    foreach (var inventoryItem in usedInventoryItems)
+                    {
+                        // Chuyển từ "Used" sang "Dispatched" khi pickup
+                        inventoryItem.Status = "Dispatched";
+                        inventoryItem.FulfillmentNotes = (inventoryItem.FulfillmentNotes ?? "") + 
+                            $"\n[{DateTimeOffset.UtcNow}] DISPATCHED: Blood picked up (status updated to Picked Up)";
+                        
+                        _unitOfWork.BloodInventories.Update(inventoryItem);
+                        dispatchedCount++;
+                    }
+
+                    var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+
+                    // Add pickup info to request notes
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + 
+                        $"<div class='pickup-note'>" +
+                        $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                        $"<span class='action'>Đã lấy máu</span> (cập nhật trạng thái)<br/>" +
+                        $"<strong>Số đơn vị xuất kho:</strong> {dispatchedCount} đơn vị" +
+                        $"</div>";
+
+                    _unitOfWork.BloodRequests.Update(bloodRequest);
+                    await _unitOfWork.CompleteAsync();
+
+                    _logger?.LogInformation("Blood request {RequestId} status updated to Picked Up. {ItemCount} inventory items dispatched", 
+                        id, dispatchedCount);
+
+                    // Reload to get all navigation properties
+                    bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(id);
+                    var pickedUpRequestDto = MapToDto(bloodRequest);
+
+                    // Send real-time notifications for pickup
+                    if (_realTimeNotificationService != null)
+                    {
+                        await _realTimeNotificationService.NotifyBloodRequestStatusChange(
+                            id, status, $"Blood request completed - {dispatchedCount} units dispatched");
+                        
+                        if (bloodRequest.IsEmergency)
+                        {
+                            await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                                id, status, "Emergency blood request completed");
+                            await _realTimeNotificationService.UpdateEmergencyDashboard();
+                        }
+                        
+                        await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                        await _realTimeNotificationService.UpdateInventoryDashboard();
+                    }
+
+                    return new ApiResponse<BloodRequestDto>(pickedUpRequestDto, 
+                        $"Blood request status updated to Picked Up successfully - {dispatchedCount} inventory items dispatched");
+                }
+
+                // **XỬ LÝ ROLLBACK INVENTORY KHI CANCEL REQUEST ĐÃ FULFILLED**
+                if (previousStatus == "Fulfilled" && status == "Cancelled")
+                {
+                    _logger?.LogInformation("Cancelling fulfilled blood request {RequestId}. Rolling back inventory...", id);
+                    
+                    // Sử dụng method riêng để rollback inventory
+                    int rolledBackCount = await RollbackInventoryAsync(id);
+                    
+                    var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+                    
+                    // Reset fulfillment tracking fields in blood request
+                    bloodRequest.FulfilledDate = null;
+                    bloodRequest.FulfilledByStaffId = null;
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + 
+                        $"<div class='cancellation-note'>" +
+                        $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                        $"<span class='action'>Đã hủy yêu cầu</span><br/>" +
+                        $"<strong>Hoàn trả kho:</strong> {rolledBackCount} đơn vị được khôi phục" +
+                        $"</div>";
+                    
+                    _logger?.LogInformation("Completed inventory rollback for cancelled request {RequestId}. {ItemCount} items restored", 
+                        id, rolledBackCount);
+                }
+                else if (previousStatus == "Fulfilled" && status != "Fulfilled" && status != "Picked Up")
+                {
+                    // Nếu từ Fulfilled chuyển sang trạng thái khác (không phải Cancelled hoặc Picked Up), cũng cần cảnh báo
+                    _logger?.LogWarning("Changing fulfilled request {RequestId} from {PreviousStatus} to {NewStatus}. Consider inventory implications.", 
+                        id, previousStatus, status);
+                }
                 
+                // **CẬP NHẬT STATUS THÔNG THƯỜNG**
                 bloodRequest.Status = status;
                 bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
 
@@ -824,8 +1075,12 @@ namespace Services.Implementation
                 // Send real-time notifications
                 if (_realTimeNotificationService != null)
                 {
+                    string notificationMessage = previousStatus == "Fulfilled" && status == "Cancelled" 
+                        ? "Blood request cancelled - inventory has been restored"
+                        : $"Status updated from {previousStatus} to {status}";
+                        
                     await _realTimeNotificationService.NotifyBloodRequestStatusChange(
-                        id, status, $"Status updated from {previousStatus} to {status}");
+                        id, status, notificationMessage);
                     
                     if (bloodRequest.IsEmergency)
                     {
@@ -835,6 +1090,12 @@ namespace Services.Implementation
                     }
                     
                     await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    
+                    // Update inventory dashboard if inventory was affected
+                    if (previousStatus == "Fulfilled" && status == "Cancelled")
+                    {
+                        await _realTimeNotificationService.UpdateInventoryDashboard();
+                    }
                 }
 
                 return new ApiResponse<BloodRequestDto>(bloodRequestDto, "Blood request status updated successfully");
@@ -860,6 +1121,25 @@ namespace Services.Implementation
                     return new ApiResponse<BloodRequestDto>(HttpStatusCode.NotFound, $"Blood request with ID {id} not found");
                 }
 
+                // **QUAN TRỌNG**: Xử lý rollback inventory nếu request đã fulfilled
+                if (bloodRequest.Status == "Fulfilled")
+                {
+                    _logger?.LogInformation("Deactivating fulfilled blood request {RequestId}. Rolling back inventory...", id);
+                    
+                    // Rollback inventory khi deactivate fulfilled request
+                    int rolledBackCount = await RollbackInventoryAsync(id);
+                    
+                    // Reset fulfillment tracking fields
+                    bloodRequest.FulfilledDate = null;
+                    bloodRequest.FulfilledByStaffId = null;
+                    bloodRequest.Status = "Cancelled"; // Set to Cancelled when deactivating fulfilled request
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + 
+                        $"\n[{DateTimeOffset.UtcNow}] Request deactivated - {rolledBackCount} inventory items restored to available";
+                    
+                    _logger?.LogInformation("Completed inventory rollback for deactivated request {RequestId}. {ItemCount} items restored", 
+                        id, rolledBackCount);
+                }
+
                 bloodRequest.IsActive = false;
                 bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
 
@@ -875,8 +1155,12 @@ namespace Services.Implementation
                 // Send real-time notifications
                 if (_realTimeNotificationService != null)
                 {
+                    string notificationMessage = bloodRequest.Status == "Cancelled" 
+                        ? "Blood request deactivated - inventory has been restored"
+                        : "Blood request has been deactivated";
+                        
                     await _realTimeNotificationService.NotifyBloodRequestStatusChange(
-                        id, "Deactivated", "Blood request has been deactivated");
+                        id, "Deactivated", notificationMessage);
                     
                     if (bloodRequest.IsEmergency)
                     {
@@ -886,6 +1170,12 @@ namespace Services.Implementation
                     }
                     
                     await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    
+                    // Update inventory dashboard if inventory was affected
+                    if (bloodRequest.Status == "Cancelled")
+                    {
+                        await _realTimeNotificationService.UpdateInventoryDashboard();
+                    }
                 }
 
                 return new ApiResponse<BloodRequestDto>(bloodRequestDto, "Blood request marked as inactive successfully");
@@ -1037,6 +1327,93 @@ namespace Services.Implementation
             return false;
         }
 
+        /// <summary>
+        /// Rollback inventory when a fulfilled blood request is cancelled
+        /// </summary>
+        /// <param name="requestId">The blood request ID that was cancelled</param>
+        /// <returns>Number of inventory items rolled back</returns>
+        private async Task<int> RollbackInventoryAsync(Guid requestId)
+        {
+            try
+            {
+                _logger?.LogInformation("Starting inventory rollback for cancelled request {RequestId}", requestId);
+                
+                // Tìm các inventory items đã được sử dụng cho request này (cả "Used" và "Dispatched")
+                var usedInventoryItems = await _unitOfWork.BloodInventories.FindAsync(i => 
+                    i.FulfilledRequestId == requestId && 
+                    (i.Status == "Used" || i.Status == "Dispatched"));
+                
+                int rolledBackCount = 0;
+                int expiredCount = 0;
+                int cannotRollbackCount = 0;
+                
+                var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+                
+                foreach (var inventoryItem in usedInventoryItems)
+                {
+                    // Kiểm tra xem có thể rollback không
+                    if (inventoryItem.Status == "Dispatched")
+                    {
+                        // Nếu đã được dispatched (picked up), không thể rollback
+                        inventoryItem.FulfillmentNotes = (inventoryItem.FulfillmentNotes ?? "") + 
+                            $"\n[{vietnamTime:dd/MM/yyyy HH:mm}] ROLLBACK FAILED: Item already dispatched. Request {requestId} was cancelled";
+                        
+                        _unitOfWork.BloodInventories.Update(inventoryItem);
+                        cannotRollbackCount++;
+                        
+                        _logger?.LogWarning("Cannot rollback dispatched inventory item {InventoryId} for cancelled request {RequestId}", 
+                            inventoryItem.Id, requestId);
+                    }
+                    else if (inventoryItem.ExpirationDate <= DateTimeOffset.UtcNow)
+                    {
+                        // Nếu đã hết hạn, đánh dấu là Expired
+                        inventoryItem.Status = "Expired";
+                        inventoryItem.FulfillmentNotes = (inventoryItem.FulfillmentNotes ?? "") + 
+                            $"\n[{vietnamTime:dd/MM/yyyy HH:mm}] ROLLBACK FAILED: Item expired before cancellation. Request {requestId} was cancelled";
+                        
+                        _unitOfWork.BloodInventories.Update(inventoryItem);
+                        expiredCount++;
+                        
+                        _logger?.LogWarning("Cannot rollback expired inventory item {InventoryId} for cancelled request {RequestId}", 
+                            inventoryItem.Id, requestId);
+                    }
+                    else
+                    {
+                        // Rollback inventory về trạng thái Available (chỉ khi status = "Used" và chưa expired)
+                        inventoryItem.Status = "Available";
+                        inventoryItem.FulfilledRequestId = null;
+                        inventoryItem.FulfilledDate = null;
+                        inventoryItem.FulfillmentNotes = (inventoryItem.FulfillmentNotes ?? "") + 
+                            $"\n[{vietnamTime:dd/MM/yyyy HH:mm}] ROLLBACK: Request {requestId} was cancelled - item restored to available";
+                        
+                        _unitOfWork.BloodInventories.Update(inventoryItem);
+                        rolledBackCount++;
+                        
+                        _logger?.LogInformation("Rolled back inventory item {InventoryId} to Available status", inventoryItem.Id);
+                    }
+                }
+                
+                // Log tổng kết rollback
+                if (cannotRollbackCount > 0 || expiredCount > 0)
+                {
+                    _logger?.LogWarning("Inventory rollback for request {RequestId}: {RolledBackCount} items restored, {ExpiredCount} items expired, {DispatchedCount} items already dispatched", 
+                        requestId, rolledBackCount, expiredCount, cannotRollbackCount);
+                }
+                else if (rolledBackCount > 0)
+                {
+                    _logger?.LogInformation("Successfully rolled back {RolledBackCount} inventory items for cancelled request {RequestId}", 
+                        rolledBackCount, requestId);
+                }
+                
+                return rolledBackCount;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error occurred during inventory rollback for request {RequestId}", requestId);
+                throw; // Re-throw để caller có thể handle
+            }
+        }
+
         public async Task<ApiResponse<InventoryCheckResultDto>> CheckInventoryForRequestAsync(Guid requestId)
         {
             try
@@ -1050,11 +1427,11 @@ namespace Services.Implementation
                     return new ApiResponse<InventoryCheckResultDto>(HttpStatusCode.NotFound, "Blood request not found");
                 }
                     
-                // Search inventory for matching blood
+                // Search inventory for matching blood - sử dụng status "Available"
                 var availableInventory = await _unitOfWork.BloodInventories.FindAsync(i => 
                     i.BloodGroupId == request.BloodGroupId && 
                     i.ComponentTypeId == request.ComponentTypeId && 
-                    i.Status == "Processing" && 
+                    i.Status == "Available" && // Thay đổi từ "Processing" thành "Available"
                     i.ExpirationDate > DateTimeOffset.UtcNow);
                     
                 // Calculate total available units
@@ -1101,6 +1478,118 @@ namespace Services.Implementation
             }
         }
 
+        /// <summary>
+        /// Check if a fulfilled blood request can be safely cancelled (i.e., inventory not picked up yet)
+        /// </summary>
+        /// <param name="requestId">The blood request ID to check</param>
+        /// <returns>Information about cancellation feasibility</returns>
+        public async Task<ApiResponse<object>> CheckCancellationFeasibilityAsync(Guid requestId)
+        {
+            try
+            {
+                _logger?.LogInformation("Checking cancellation feasibility for request {RequestId}", requestId);
+                
+                var request = await _unitOfWork.BloodRequests.GetByIdAsync(requestId);
+                if (request == null)
+                {
+                    return new ApiResponse<object>(HttpStatusCode.NotFound, "Blood request not found");
+                }
+                
+                if (request.Status != "Fulfilled")
+                {
+                    return new ApiResponse<object>(new { 
+                        CanCancel = true, 
+                        Reason = "Request is not fulfilled yet", 
+                        InventoryImpact = "None" 
+                    }, "Request can be cancelled without inventory impact");
+                }
+                
+                // Check if blood has been picked up
+                if (request.IsPickedUp)
+                {
+                    return new ApiResponse<object>(new { 
+                        CanCancel = false, 
+                        Reason = "Blood has already been picked up", 
+                        PickupDate = request.PickupDate,
+                        InventoryImpact = "Cannot rollback - blood already dispatched to recipient" 
+                    }, "Request cannot be cancelled - blood already picked up");
+                }
+                
+                // Check inventory items status and expiration
+                var fulfilledInventoryItems = await _unitOfWork.BloodInventories.FindAsync(i => 
+                    i.FulfilledRequestId == requestId && 
+                    (i.Status == "Used" || i.Status == "Dispatched"));
+                
+                var usedItems = fulfilledInventoryItems.Where(i => i.Status == "Used").ToList();
+                var dispatchedItems = fulfilledInventoryItems.Where(i => i.Status == "Dispatched").ToList();
+                var expiredItems = usedItems.Where(i => i.ExpirationDate <= DateTimeOffset.UtcNow).ToList();
+                var availableForRollback = usedItems.Where(i => i.ExpirationDate > DateTimeOffset.UtcNow).ToList();
+                
+                bool canCancelSafely = dispatchedItems.Count == 0; // Chỉ có thể cancel an toàn nếu chưa có items nào được dispatched
+                
+                return new ApiResponse<object>(new { 
+                    CanCancel = canCancelSafely, 
+                    Reason = canCancelSafely 
+                        ? "Request can be cancelled with inventory rollback" 
+                        : "Request cannot be safely cancelled - some inventory items already dispatched",
+                    InventoryImpact = new {
+                        TotalItems = fulfilledInventoryItems.Count(),
+                        UsedItems = usedItems.Count,
+                        DispatchedItems = dispatchedItems.Count,
+                        CanRollback = availableForRollback.Count,
+                        ExpiredItems = expiredItems.Count,
+                        RollbackFeasible = availableForRollback.Any() && dispatchedItems.Count == 0
+                    }
+                }, canCancelSafely 
+                    ? "Request can be cancelled with partial or full inventory rollback"
+                    : "Request cannot be safely cancelled - inventory already dispatched");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error checking cancellation feasibility for request {RequestId}", requestId);
+                return new ApiResponse<object>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Format medical notes for better display with CSS classes
+        /// </summary>
+        private string FormatMedicalNotesForDisplay(string medicalNotes)
+        {
+            if (string.IsNullOrWhiteSpace(medicalNotes))
+                return "";
+
+            // Nếu đã có HTML formatting thì thêm CSS styles
+            if (medicalNotes.Contains("<div class="))
+            {
+                var styledNotes = medicalNotes
+                    .Replace("<div class='fulfillment-note'>", 
+                        "<div style='margin: 10px 0; padding: 10px; background: #e8f5e8; border-left: 4px solid #28a745; border-radius: 4px;'>")
+                    .Replace("<div class='pickup-note'>", 
+                        "<div style='margin: 10px 0; padding: 10px; background: #e6f3ff; border-left: 4px solid #007bff; border-radius: 4px;'>")
+                    .Replace("<div class='cancellation-note'>", 
+                        "<div style='margin: 10px 0; padding: 10px; background: #ffe6e6; border-left: 4px solid #dc3545; border-radius: 4px;'>")
+                    .Replace("<div class='inventory-info'>", 
+                        "<div style='margin: 5px 0; padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.9em;'>")
+                    .Replace("<span class='action'>", 
+                        "<span style='color: #495057; font-weight: bold;'>")
+                    .Replace("<strong>", 
+                        "<strong style='color: #333;'>")
+                    .Replace("<em>", 
+                        "<em style='color: #6c757d;'>");
+                
+                return $"<div style='font-family: Arial, sans-serif; line-height: 1.4;'>{styledNotes}</div>";
+            }
+
+            // Format các notes cũ thành HTML đẹp hơn
+            var formatted = medicalNotes
+                .Replace("\n", "<br/>")
+                .Replace("[", "<strong style='color: #333;'>[")
+                .Replace("]", "]</strong>");
+
+            return $"<div style='font-family: Arial, sans-serif; line-height: 1.4; padding: 10px; background: #f8f9fa; border-radius: 4px;'>{formatted}</div>";
+        }
+
         private BloodRequestDto MapToDto(BloodRequest bloodRequest)
         {
             return new BloodRequestDto
@@ -1122,29 +1611,37 @@ namespace Services.Implementation
                 ContactInfo = bloodRequest.ContactInfo,
                 HospitalName = bloodRequest.HospitalName,
                 
-                // Blood information
+                // Blood information - ĐẢM BẢO LOAD ĐỦ THÔNG TIN
                 BloodGroupId = bloodRequest.BloodGroupId,
-                BloodGroupName = bloodRequest.BloodGroup?.GroupName ?? "",
+                BloodGroupName = bloodRequest.BloodGroup?.GroupName ?? "Chưa xác định",
                 ComponentTypeId = bloodRequest.ComponentTypeId,
-                ComponentTypeName = bloodRequest.ComponentType?.Name ?? "",
+                ComponentTypeName = bloodRequest.ComponentType?.Name ?? "Chưa xác định",
                 
                 // Location information
                 LocationId = bloodRequest.LocationId,
-                LocationName = bloodRequest.Location?.Name ?? "",
+                LocationName = bloodRequest.Location?.Name ?? "Chưa xác định",
                 Address = bloodRequest.Address,
                 Latitude = bloodRequest.Latitude,
                 Longitude = bloodRequest.Longitude,
                 
-                // Medical notes and status
-                MedicalNotes = bloodRequest.MedicalNotes,
+                // Medical notes and status - ĐỊNH DẠNG HTML ĐẸP HỌN
+                MedicalNotes = FormatMedicalNotesForDisplay(bloodRequest.MedicalNotes),
                 IsActive = bloodRequest.IsActive,
+                
+                // Fulfillment tracking
+                FulfilledDate = bloodRequest.FulfilledDate,
+                FulfilledByStaffId = bloodRequest.FulfilledByStaffId,
+                FulfilledByStaffName = "", // Có thể join thêm với User table để lấy tên staff
+                IsPickedUp = bloodRequest.IsPickedUp,
+                PickupDate = bloodRequest.PickupDate,
+                PickupNotes = bloodRequest.PickupNotes,
                 
                 // Audit information
                 CreatedTime = bloodRequest.CreatedTime,
                 LastUpdatedTime = bloodRequest.LastUpdatedTime
             };
         }
-        
+
         private BloodRequestDto MapToDtoWithDistance(BloodRequest bloodRequest, double userLatitude, double userLongitude)
         {
             var dto = MapToDto(bloodRequest);
