@@ -131,7 +131,8 @@ namespace BusinessObjects.Dtos
         
         [Range(1, 3, ErrorMessage = "Priority must be between 1 (Normal) and 3 (Critical)")]
         public int Priority { get; set; } = 1;
-        
+        public Guid? RelatedBloodRequestId { get; set; }
+
         // Optional: Auto-expire after X hours if no response
         public int? AutoExpireHours { get; set; } = 72; // Default 3 days
     }

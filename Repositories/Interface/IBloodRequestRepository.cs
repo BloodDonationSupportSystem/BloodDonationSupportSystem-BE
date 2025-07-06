@@ -14,5 +14,6 @@ namespace Repositories.Interface
         // New methods for distance-based searches
         Task<IEnumerable<BloodRequest>> GetBloodRequestsByDistanceAsync(double latitude, double longitude, double radiusKm, Guid? bloodGroupId = null, string status = null);
         Task<(IEnumerable<BloodRequest> requests, int totalCount)> GetPagedBloodRequestsByDistanceAsync(double latitude, double longitude, double radiusKm, BloodRequestParameters parameters);
+        Task<IEnumerable<BloodRequest>> GetByUserIdWithDetailsAsync(Guid userId);
     }
 }

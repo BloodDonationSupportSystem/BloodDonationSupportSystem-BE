@@ -656,6 +656,15 @@ namespace Services.Implementation
                 await _unitOfWork.DonationEvents.AddAsync(donationEvent);
                 await _unitOfWork.CompleteAsync();
                 
+                // Update related blood request status
+                if (appointment.RelatedBloodRequestId.HasValue)
+                {
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        appointment.RelatedBloodRequestId.Value, 
+                        "DonationInProgress", 
+                        $"Donor đã check-in thành công và bắt đầu quá trình hiến máu tại {appointment.ConfirmedLocation?.Name ?? appointment.Location?.Name}");
+                }
+                
                 // Gửi thông báo
                 var donor = appointment.Donor;
                 if (donor != null && donor.UserId != Guid.Empty)
@@ -738,6 +747,16 @@ namespace Services.Implementation
                             appointment.Status = "Rejected";
                             appointment.RejectionReason = healthCheckDto.RejectionReason;
                             _unitOfWork.DonationAppointmentRequests.Update(appointment);
+                            
+                            // Update related blood request status when health check fails
+                            if (appointment.RelatedBloodRequestId.HasValue)
+                            {
+                                await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                                    appointment.RelatedBloodRequestId.Value, 
+                                    "Processing", 
+                                    $"Health check thất bại. Lý do: {healthCheckDto.RejectionReason}. Cần tìm donor khác.");
+                            }
+                            
                             await _unitOfWork.CompleteAsync();
                         }
                     }
@@ -807,6 +826,19 @@ namespace Services.Implementation
                 
                 _unitOfWork.DonationEvents.Update(donationEvent);
                 await _unitOfWork.CompleteAsync();
+                
+                // Update related blood request status when health check passes
+                if (donationEvent.RequestType == "Appointment" && donationEvent.RequestId.HasValue)
+                {
+                    var appointment = await _unitOfWork.DonationAppointmentRequests.GetByIdAsync(donationEvent.RequestId.Value);
+                    if (appointment?.RelatedBloodRequestId.HasValue == true)
+                    {
+                        await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                            appointment.RelatedBloodRequestId.Value, 
+                            "DonationInProgress", 
+                            "Health check thành công. Donor đủ điều kiện hiến máu và sẵn sàng bắt đầu quá trình hiến máu.");
+                    }
+                }
                 
                 // Gửi thông báo
                 if (donationEvent.DonorId.HasValue)
@@ -960,6 +992,18 @@ namespace Services.Implementation
                         appointment.Status = "Incomplete";
                         appointment.Notes = (appointment.Notes ?? "") + "\n" + $"Donation incomplete due to {complicationDto.ComplicationType}";
                         _unitOfWork.DonationAppointmentRequests.Update(appointment);
+                        
+                        // Update related blood request status when complication occurs
+                        if (appointment.RelatedBloodRequestId.HasValue)
+                        {
+                            var isUsableNote = complicationDto.IsUsable ? "có thể sử dụng" : "không thể sử dụng";
+                            await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                                appointment.RelatedBloodRequestId.Value, 
+                                "Processing", 
+                                $"Donation bị gián đoạn do biến chứng: {complicationDto.ComplicationType}. " +
+                                $"Lượng máu thu được: {complicationDto.CollectedAmount?.ToString() ?? "0"}ml ({isUsableNote}). " +
+                                $"Cần tìm donor khác để bù đắp.");
+                        }
                     }
                 }
                 
@@ -1046,11 +1090,11 @@ namespace Services.Implementation
                     {
                         donor.LastDonationDate = completionDto.DonationDate;
                         donor.TotalDonations = donor.TotalDonations + 1;
-                        
+
                         // Tính ngày có thể hiến máu tiếp theo (mặc định 3 tháng)
-                        donor.NextAvailableDonationDate = CalculateNextAvailableDonationDate(
-                            completionDto.DonationDate, donationEvent.ComponentTypeId);
-                        
+                        donor.NextAvailableDonationDate = await CalculateNextAvailableDonationDateAsync(
+                             completionDto.DonationDate, donationEvent.ComponentTypeId);
+
                         _unitOfWork.DonorProfiles.Update(donor);
                     }
                 }
@@ -1078,8 +1122,44 @@ namespace Services.Implementation
                     QuantityUnits = (int)completionDto.QuantityUnits,
                     Status = "Available",
                     InventorySource = "Donation",
-                    ExpirationDate = CalculateExpirationDate(completionDto.DonationDate, donationEvent.ComponentTypeId)
+                    ExpirationDate = await CalculateExpirationDateAsync(completionDto.DonationDate, donationEvent.ComponentTypeId)
                 });
+                
+                _logger.LogInformation("🩸 New blood inventory created: {Units} units of {BloodGroup} {ComponentType}", 
+                    completionDto.QuantityUnits, 
+                    donationEvent.BloodGroup?.GroupName ?? "Unknown", 
+                    donationEvent.ComponentType?.Name ?? "Unknown");
+                
+                // 🔥 ENHANCED: Update related blood request status and try auto-fulfill
+                if (donationEvent.RequestType == "Appointment" && donationEvent.RequestId.HasValue)
+                {
+                    var appointment = await _unitOfWork.DonationAppointmentRequests.GetByIdAsync(donationEvent.RequestId.Value);
+                    if (appointment?.RelatedBloodRequestId.HasValue == true)
+                    {
+                        // Update status to show donation completed
+                        await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                            appointment.RelatedBloodRequestId.Value, 
+                            "Processing", 
+                            $"✅ Donation hoàn thành thành công! Thu được {completionDto.QuantityUnits} đơn vị máu " +
+                            $"{donationEvent.BloodGroup?.GroupName} {donationEvent.ComponentType?.Name}. " +
+                            $"🤖 Đang kiểm tra tự động fulfill request...");
+                        
+                        // 🔥 Try to auto-fulfill the related blood request first (highest priority)
+                        _logger.LogInformation("🎯 Attempting to auto-fulfill related blood request {RequestId} first", 
+                            appointment.RelatedBloodRequestId.Value);
+                        
+                        await TryAutoFulfillBloodRequestAsync(appointment.RelatedBloodRequestId.Value);
+                    }
+                }
+                
+                // 🔥 ENHANCED: Auto-fulfill other pending requests with matching blood type
+                _logger.LogInformation("🔍 Looking for other pending requests that can be auto-fulfilled...");
+                
+                // Add a small delay to ensure inventory is fully committed
+                await Task.Delay(500);
+                
+                // Use intelligent auto-fulfill instead of simple auto-fulfill
+                await IntelligentAutoFulfillAsync(donationEvent.BloodGroupId, donationEvent.ComponentTypeId, (int)completionDto.QuantityUnits);
                 
                 // Gửi thông báo
                 if (donationEvent.DonorId.HasValue)
@@ -1209,28 +1289,754 @@ namespace Services.Implementation
             }
         }
 
-        private DateTimeOffset CalculateNextAvailableDonationDate(DateTimeOffset donationDate, Guid componentTypeId)
+        private async Task<DateTimeOffset> CalculateNextAvailableDonationDateAsync(DateTimeOffset donationDate, Guid componentTypeId)
         {
-            // Mặc định là 3 tháng cho toàn phần
-            int waitingPeriodInDays = 90;
-            
-            // Có thể điều chỉnh dựa trên loại thành phần máu
-            // VD: Hiến tiểu cầu có thể hiến lại sau 2 tuần
-            // Cần truy vấn thông tin thành phần máu để xác định chính xác
-            
-            return donationDate.AddDays(waitingPeriodInDays);
+            try
+            {
+                // Get the component type information from database
+                var componentType = await _unitOfWork.ComponentTypes.GetByIdAsync(componentTypeId);
+
+                if (componentType == null)
+                {
+                    _logger.LogWarning("Component type not found with ID: {ComponentTypeId}. Using default waiting period.", componentTypeId);
+                    return donationDate.AddDays(90); // Default 3 months
+                }
+
+                // Define waiting periods for different blood components (in days)
+                var waitingPeriods = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    // Whole blood donations
+                    { "Whole Blood", 90 },          // 3 months
+                    { "Máu toàn phần", 90 },        // 3 months (Vietnamese)
+                    
+                    // Red blood cells
+                    { "Red Blood Cells", 90 },      // 3 months
+                    { "Packed Red Blood Cells", 90 }, // 3 months
+                    { "PRBC", 90 },                 // 3 months
+                    { "RBC", 90 },                  // 3 months
+                    { "Hồng cầu", 90 },             // 3 months (Vietnamese)
+                    { "Khối hồng cầu", 90 },        // 3 months (Vietnamese)
+                    
+                    // Platelets - shorter waiting period
+                    { "Platelets", 14 },            // 2 weeks
+                    { "Platelet Concentrate", 14 }, // 2 weeks
+                    { "Tiểu cầu", 14 },             // 2 weeks (Vietnamese)
+                    { "Cô đặc tiểu cầu", 14 },      // 2 weeks (Vietnamese)
+                    
+                    // Plasma - shorter waiting period
+                    { "Plasma", 28 },               // 4 weeks
+                    { "Fresh Frozen Plasma", 28 },  // 4 weeks
+                    { "FFP", 28 },                  // 4 weeks
+                    { "Huyết tương", 28 },          // 4 weeks (Vietnamese)
+                    { "Huyết tương đông lạnh", 28 }, // 4 weeks (Vietnamese)
+                    
+                    // Cryoprecipitate
+                    { "Cryoprecipitate", 28 },      // 4 weeks
+                    { "Cryo", 28 },                 // 4 weeks
+                    { "Cryoprecipitate AHF", 28 },  // 4 weeks
+                    { "Cặn lạnh", 28 },             // 4 weeks (Vietnamese)
+                    
+                    // Granulocytes - very short waiting period
+                    { "Granulocytes", 7 },          // 1 week
+                    { "Bạch cầu hạt", 7 },          // 1 week (Vietnamese)
+                    
+                    // Double red cells - longer waiting period
+                    { "Double Red Cells", 180 },    // 6 months
+                    { "2RBC", 180 },                // 6 months
+                    { "Hồng cầu đôi", 180 },        // 6 months (Vietnamese)
+                    
+                    // Apheresis products
+                    { "Apheresis Platelets", 7 },   // 1 week
+                    { "Apheresis Plasma", 28 },     // 4 weeks
+                    { "Tiểu cầu ly tách", 7 },      // 1 week (Vietnamese)
+                    { "Huyết tương ly tách", 28 },  // 4 weeks (Vietnamese)
+                };
+
+                // Try to find the waiting period for the component type
+                if (waitingPeriods.TryGetValue(componentType.Name, out int waitingPeriodInDays))
+                {
+                    _logger.LogInformation("Using waiting period {Days} days for component type {ComponentType}",
+                        waitingPeriodInDays, componentType.Name);
+                    return donationDate.AddDays(waitingPeriodInDays);
+                }
+
+                // If no specific waiting period found, use intelligent default based on component name patterns
+                var componentNameLower = componentType.Name.ToLower();
+
+                if (componentNameLower.Contains("platelet") || componentNameLower.Contains("tiểu cầu"))
+                {
+                    _logger.LogInformation("Using platelet waiting period (14 days) for component type {ComponentType}", componentType.Name);
+                    return donationDate.AddDays(14);
+                }
+                else if (componentNameLower.Contains("plasma") || componentNameLower.Contains("huyết tương"))
+                {
+                    _logger.LogInformation("Using plasma waiting period (28 days) for component type {ComponentType}", componentType.Name);
+                    return donationDate.AddDays(28);
+                }
+                else if (componentNameLower.Contains("red") || componentNameLower.Contains("rbc") || componentNameLower.Contains("hồng cầu"))
+                {
+                    _logger.LogInformation("Using red blood cell waiting period (90 days) for component type {ComponentType}", componentType.Name);
+                    return donationDate.AddDays(90);
+                }
+                else if (componentNameLower.Contains("whole") || componentNameLower.Contains("toàn phần"))
+                {
+                    _logger.LogInformation("Using whole blood waiting period (90 days) for component type {ComponentType}", componentType.Name);
+                    return donationDate.AddDays(90);
+                }
+                else if (componentNameLower.Contains("cryo") || componentNameLower.Contains("cặn lạnh"))
+                {
+                    _logger.LogInformation("Using cryoprecipitate waiting period (28 days) for component type {ComponentType}", componentType.Name);
+                    return donationDate.AddDays(28);
+                }
+                else if (componentNameLower.Contains("granulocyte") || componentNameLower.Contains("bạch cầu"))
+                {
+                    _logger.LogInformation("Using granulocyte waiting period (7 days) for component type {ComponentType}", componentType.Name);
+                    return donationDate.AddDays(7);
+                }
+
+                // Default fallback - whole blood waiting period
+                _logger.LogInformation("Using default waiting period (90 days) for unknown component type {ComponentType}", componentType.Name);
+                return donationDate.AddDays(90);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating next available donation date for component type {ComponentTypeId}. Using default 90 days.", componentTypeId);
+                return donationDate.AddDays(90); // Safe fallback
+            }
         }
 
-        private DateTimeOffset CalculateExpirationDate(DateTimeOffset collectionDate, Guid componentTypeId)
+        /// <summary>
+        /// Calculate the expiration date for blood inventory based on component type and collection date
+        /// </summary>
+        /// <param name="collectionDate">The date when the blood was collected</param>
+        /// <param name="componentTypeId">The ID of the blood component type</param>
+        /// <returns>The expiration date for the blood component</returns>
+        private async Task<DateTimeOffset> CalculateExpirationDateAsync(DateTimeOffset collectionDate, Guid componentTypeId)
         {
-            // Mặc định là 42 ngày cho hồng cầu
-            int expirationPeriodInDays = 42;
-            
-            // Có thể điều chỉnh dựa trên loại thành phần máu
-            // VD: Tiểu cầu chỉ tồn tại 5 ngày, huyết tương đông lạnh có thể lên tới 1 năm
-            // Cần truy vấn thông tin thành phần máu để xác định chính xác
-            
-            return collectionDate.AddDays(expirationPeriodInDays);
+            try
+            {
+                // Get the component type information from database
+                var componentType = await _unitOfWork.ComponentTypes.GetByIdAsync(componentTypeId);
+
+                if (componentType == null)
+                {
+                    _logger.LogWarning("Component type not found with ID: {ComponentTypeId}. Using default expiration period.", componentTypeId);
+                    return collectionDate.AddDays(42); // Default 42 days for red blood cells
+                }
+
+                // Use ShelfLifeDays from the database if available
+                if (componentType.ShelfLifeDays > 0)
+                {
+                    _logger.LogInformation("Using database shelf life {Days} days for component type {ComponentType}",
+                        componentType.ShelfLifeDays, componentType.Name);
+                    return collectionDate.AddDays(componentType.ShelfLifeDays);
+                }
+
+                // Define expiration periods for different blood components (in days)
+                var expirationPeriods = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    // Whole blood
+                    { "Whole Blood", 42 },          // 42 days at 1-6°C
+                    { "Máu toàn phần", 42 },        // 42 days (Vietnamese)
+                    
+                    // Red blood cells
+                    { "Red Blood Cells", 42 },      // 42 days at 1-6°C
+                    { "Packed Red Blood Cells", 42 }, // 42 days at 1-6°C
+                    { "PRBC", 42 },                 // 42 days at 1-6°C
+                    { "RBC", 42 },                  // 42 days at 1-6°C
+                    { "Hồng cầu", 42 },             // 42 days (Vietnamese)
+                    { "Khối hồng cầu", 42 },        // 42 days (Vietnamese)
+                    
+                    // Platelets - very short shelf life
+                    { "Platelets", 5 },             // 5 days at 20-24°C with agitation
+                    { "Platelet Concentrate", 5 },  // 5 days at 20-24°C with agitation
+                    { "Tiểu cầu", 5 },              // 5 days (Vietnamese)
+                    { "Cô đặc tiểu cầu", 5 },       // 5 days (Vietnamese)
+                    
+                    // Fresh Frozen Plasma
+                    { "Plasma", 365 },              // 1 year at -18°C or colder
+                    { "Fresh Frozen Plasma", 365 }, // 1 year at -18°C or colder
+                    { "FFP", 365 },                 // 1 year at -18°C or colder
+                    { "Huyết tương", 365 },         // 1 year (Vietnamese)
+                    { "Huyết tương đông lạnh", 365 }, // 1 year (Vietnamese)
+                    
+                    // Thawed Plasma
+                    { "Thawed Plasma", 5 },         // 5 days at 1-6°C after thawing
+                    { "Thawed FFP", 5 },            // 5 days at 1-6°C after thawing
+                    { "Huyết tương rã đông", 5 },   // 5 days (Vietnamese)
+                    
+                    // Cryoprecipitate
+                    { "Cryoprecipitate", 365 },     // 1 year at -18°C or colder
+                    { "Cryo", 365 },                // 1 year at -18°C or colder
+                    { "Cryoprecipitate AHF", 365 }, // 1 year at -18°C or colder
+                    { "Cặn lạnh", 365 },            // 1 year (Vietnamese)
+                    
+                    // Thawed Cryoprecipitate
+                    { "Thawed Cryoprecipitate", 1 }, // 6 hours at room temperature or 4 hours at 1-6°C
+                    { "Thawed Cryo", 1 },           // 6 hours at room temperature or 4 hours at 1-6°C
+                    { "Cặn lạnh rã đông", 1 },      // 6 hours (Vietnamese)
+                    
+                    // Granulocytes - very short shelf life
+                    { "Granulocytes", 1 },          // 24 hours at 20-24°C
+                    { "Bạch cầu hạt", 1 },          // 24 hours (Vietnamese)
+                    
+                    // Extended storage red cells
+                    { "Extended Storage RBC", 63 }, // 63 days with special additive solutions
+                    { "Extended Storage Red Cells", 63 }, // 63 days with special additive solutions
+                    { "Hồng cầu bảo quản kéo dài", 63 }, // 63 days (Vietnamese)
+                    
+                    // Apheresis products
+                    { "Apheresis Platelets", 5 },   // 5 days at 20-24°C with agitation
+                    { "Apheresis Plasma", 365 },    // 1 year at -18°C or colder
+                    { "Tiểu cầu ly tách", 5 },      // 5 days (Vietnamese)
+                    { "Huyết tương ly tách", 365 }, // 1 year (Vietnamese)
+                    
+                    // Leukocyte-reduced products
+                    { "Leukocyte-Reduced RBC", 42 }, // 42 days at 1-6°C
+                    { "Leukocyte-Reduced Platelets", 5 }, // 5 days at 20-24°C with agitation
+                    { "Hồng cầu loại bỏ bạch cầu", 42 }, // 42 days (Vietnamese)
+                    { "Tiểu cầu loại bỏ bạch cầu", 5 }, // 5 days (Vietnamese)
+                    
+                    // Irradiated products - slightly shorter shelf life
+                    { "Irradiated RBC", 28 },       // 28 days from irradiation date or original expiry, whichever is sooner
+                    { "Irradiated Platelets", 5 },  // 5 days at 20-24°C with agitation
+                    { "Hồng cầu chiếu xạ", 28 },    // 28 days (Vietnamese)
+                    { "Tiểu cầu chiếu xạ", 5 },     // 5 days (Vietnamese)
+                };
+
+                // Try to find the expiration period for the component type
+                if (expirationPeriods.TryGetValue(componentType.Name, out int expirationPeriodInDays))
+                {
+                    _logger.LogInformation("Using expiration period {Days} days for component type {ComponentType}",
+                        expirationPeriodInDays, componentType.Name);
+                    return collectionDate.AddDays(expirationPeriodInDays);
+                }
+
+                // If no specific expiration period found, use intelligent default based on component name patterns
+                var componentNameLower = componentType.Name.ToLower();
+
+                if (componentNameLower.Contains("platelet") || componentNameLower.Contains("tiểu cầu"))
+                {
+                    _logger.LogInformation("Using platelet expiration period (5 days) for component type {ComponentType}", componentType.Name);
+                    return collectionDate.AddDays(5);
+                }
+                else if (componentNameLower.Contains("plasma") || componentNameLower.Contains("huyết tương"))
+                {
+                    // Check if it's thawed plasma
+                    if (componentNameLower.Contains("thawed") || componentNameLower.Contains("rã đông"))
+                    {
+                        _logger.LogInformation("Using thawed plasma expiration period (5 days) for component type {ComponentType}", componentType.Name);
+                        return collectionDate.AddDays(5);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Using frozen plasma expiration period (365 days) for component type {ComponentType}", componentType.Name);
+                        return collectionDate.AddDays(365);
+                    }
+                }
+                else if (componentNameLower.Contains("red") || componentNameLower.Contains("rbc") || componentNameLower.Contains("hồng cầu"))
+                {
+                    // Check if it's irradiated
+                    if (componentNameLower.Contains("irradiated") || componentNameLower.Contains("chiếu xạ"))
+                    {
+                        _logger.LogInformation("Using irradiated red blood cell expiration period (28 days) for component type {ComponentType}", componentType.Name);
+                        return collectionDate.AddDays(28);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Using red blood cell expiration period (42 days) for component type {ComponentType}", componentType.Name);
+                        return collectionDate.AddDays(42);
+                    }
+                }
+                else if (componentNameLower.Contains("whole") || componentNameLower.Contains("toàn phần"))
+                {
+                    _logger.LogInformation("Using whole blood expiration period (42 days) for component type {ComponentType}", componentType.Name);
+                    return collectionDate.AddDays(42);
+                }
+                else if (componentNameLower.Contains("cryo") || componentNameLower.Contains("cặn lạnh"))
+                {
+                    // Check if it's thawed cryoprecipitate
+                    if (componentNameLower.Contains("thawed") || componentNameLower.Contains("rã đông"))
+                    {
+                        _logger.LogInformation("Using thawed cryoprecipitate expiration period (1 day) for component type {ComponentType}", componentType.Name);
+                        return collectionDate.AddDays(1);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Using frozen cryoprecipitate expiration period (365 days) for component type {ComponentType}", componentType.Name);
+                        return collectionDate.AddDays(365);
+                    }
+                }
+                else if (componentNameLower.Contains("granulocyte") || componentNameLower.Contains("bạch cầu"))
+                {
+                    _logger.LogInformation("Using granulocyte expiration period (1 day) for component type {ComponentType}", componentType.Name);
+                    return collectionDate.AddDays(1);
+                }
+
+                // Default fallback - red blood cell expiration period
+                _logger.LogInformation("Using default expiration period (42 days) for unknown component type {ComponentType}", componentType.Name);
+                return collectionDate.AddDays(42);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating expiration date for component type {ComponentTypeId}. Using default 42 days.", componentTypeId);
+                return collectionDate.AddDays(42); // Safe fallback
+            }
+        }
+
+        // 🔥 NEW: Auto-fulfill specific blood request
+        private async Task TryAutoFulfillBloodRequestAsync(Guid bloodRequestId)
+        {
+            try
+            {
+                _logger.LogInformation("Attempting auto-fulfill for blood request {RequestId}", bloodRequestId);
+                
+                // Get blood request details
+                var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(bloodRequestId);
+                if (bloodRequest == null)
+                {
+                    _logger.LogWarning("Blood request {RequestId} not found during auto-fulfill attempt", bloodRequestId);
+                    return;
+                }
+                
+                // Skip if request is already fulfilled or cancelled
+                if (bloodRequest.Status == "Fulfilled" || bloodRequest.Status == "Cancelled")
+                {
+                    _logger.LogInformation("Blood request {RequestId} already in final status: {Status}", bloodRequestId, bloodRequest.Status);
+                    return;
+                }
+                
+                // Check if request can be fulfilled from inventory
+                var inventoryCheck = await _bloodRequestService.CheckInventoryForRequestAsync(bloodRequestId);
+                if (!inventoryCheck.Success)
+                {
+                    _logger.LogWarning("Failed to check inventory for blood request {RequestId}: {Error}", bloodRequestId, inventoryCheck.Message);
+                    return;
+                }
+                
+                if (inventoryCheck.Data.HasSufficientInventory)
+                {
+                    // Find a system staff user for auto-fulfill
+                    var systemStaff = await _unitOfWork.Users.FindAsync(u => 
+                        u.UserName == "system" || 
+                        u.UserName.ToLower().Contains("admin") ||
+                        u.Role.RoleName == "Admin");
+                    
+                    var staffUser = systemStaff.FirstOrDefault();
+                    Guid staffId;
+                    
+                    if (staffUser != null)
+                    {
+                        staffId = staffUser.Id;
+                    }
+                    else
+                    {
+                        // Fallback: find any admin/staff user
+                        var adminStaff = await _unitOfWork.Users.FindAsync(u => 
+                            u.Role.RoleName == "Admin" || u.Role.RoleName == "Staff");
+                        staffUser = adminStaff.FirstOrDefault();
+                        
+                        if (staffUser != null)
+                        {
+                            staffId = staffUser.Id;
+                        }
+                        else
+                        {
+                            _logger.LogWarning("No suitable staff user found for auto-fulfill of request {RequestId}", bloodRequestId);
+                            return;
+                        }
+                    }
+                    
+                    // Attempt to fulfill the request
+                    var fulfillResult = await _bloodRequestService.FulfillBloodRequestFromInventoryAsync(
+                        bloodRequestId, 
+                        new FulfillBloodRequestDto 
+                        { 
+                            StaffId = staffId,
+                            Notes = $"🤖 AUTO-FULFILL: Tự động đáp ứng sau khi nhận được máu từ hiến máu. " +
+                                   $"Xử lý bởi hệ thống vào {DateTimeOffset.UtcNow:dd/MM/yyyy HH:mm}"
+                        });
+                    
+                    if (fulfillResult.Success)
+                    {
+                        _logger.LogInformation("✅ Successfully auto-fulfilled blood request {RequestId} with {Units} units", 
+                            bloodRequestId, bloodRequest.QuantityUnits);
+                        
+                        // Send real-time notification about auto-fulfill
+                        await _realTimeNotificationService.NotifyBloodRequestStatusChange(
+                            bloodRequestId, 
+                            "Fulfilled", 
+                            $"🤖 Auto-fulfilled: Request automatically fulfilled from newly donated blood inventory");
+                        
+                        if (bloodRequest.IsEmergency)
+                        {
+                            await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                                bloodRequestId, 
+                                "Fulfilled", 
+                                "🚨 Emergency request auto-fulfilled from fresh donation!");
+                            await _realTimeNotificationService.UpdateEmergencyDashboard();
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("❌ Failed to auto-fulfill blood request {RequestId}: {Error}", 
+                            bloodRequestId, fulfillResult.Message);
+                        
+                        // Update request with failure note
+                        await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                            bloodRequestId, 
+                            "Processing",
+                            $"🤖 AUTO-FULFILL FAILED: {fulfillResult.Message}. Cần xử lý thủ công.");
+                    }
+                }
+                else
+                {
+                    var availableUnits = inventoryCheck.Data.AvailableUnits;
+                    var requiredUnits = inventoryCheck.Data.RequestedUnits;
+                    
+                    _logger.LogInformation("📦 Blood request {RequestId} cannot be auto-fulfilled - insufficient inventory (Available: {Available}, Required: {Required})", 
+                        bloodRequestId, availableUnits, requiredUnits);
+                    
+                    // Update request status with partial inventory info
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        bloodRequestId, 
+                        "Processing",
+                        $"🤖 AUTO-CHECK: Hiện có {availableUnits}/{requiredUnits} đơn vị trong kho. " +
+                        $"Vẫn thiếu {requiredUnits - availableUnits} đơn vị để đáp ứng yêu cầu.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error during auto-fulfill attempt for blood request {RequestId}", bloodRequestId);
+                
+                try
+                {
+                    // Update request with error info
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        bloodRequestId, 
+                        "Processing",
+                        $"🤖 AUTO-FULFILL ERROR: {ex.Message}. Cần kiểm tra và xử lý thủ công.");
+                }
+                catch (Exception updateEx)
+                {
+                    _logger.LogError(updateEx, "Failed to update request status after auto-fulfill error");
+                }
+            }
+        }
+
+        // 🔥 NEW: Auto-fulfill pending requests with matching blood type
+        private async Task AutoFulfillPendingRequestsAsync(Guid bloodGroupId, Guid componentTypeId)
+        {
+            try
+            {
+                _logger.LogInformation("🔍 Looking for pending requests to auto-fulfill. BloodGroup: {BloodGroupId}, ComponentType: {ComponentTypeId}", 
+                    bloodGroupId, componentTypeId);
+                
+                // Get blood group and component type names for logging
+                var bloodGroup = await _unitOfWork.BloodGroups.GetByIdAsync(bloodGroupId);
+                var componentType = await _unitOfWork.ComponentTypes.GetByIdAsync(componentTypeId);
+                var bloodGroupName = bloodGroup?.GroupName ?? "Unknown";
+                var componentTypeName = componentType?.Name ?? "Unknown";
+                
+                _logger.LogInformation("🩸 Searching for {BloodGroup} {ComponentType} requests", bloodGroupName, componentTypeName);
+                
+                // Find pending requests that match the blood type from the donation
+                var pendingRequests = await _unitOfWork.BloodRequests.FindAsync(r =>
+                    r.BloodGroupId == bloodGroupId &&
+                    r.ComponentTypeId == componentTypeId &&
+                    (r.Status == "Pending" || r.Status == "Processing" || r.Status == "AwaitingDonation" || r.Status == "DonorConfirmed") &&
+                    r.IsActive &&
+                    r.DeletedTime == null);
+                
+                var requestsList = pendingRequests
+                    .OrderBy(r => r.IsEmergency ? 0 : 1) // Emergency requests first
+                    .ThenBy(r => r.RequestDate) // Then by request date (oldest first)
+                    .ToList();
+                
+                if (!requestsList.Any())
+                {
+                    _logger.LogInformation("✅ No pending requests found for {BloodGroup} {ComponentType}", bloodGroupName, componentTypeName);
+                    return;
+                }
+                
+                _logger.LogInformation("📋 Found {Count} pending requests for {BloodGroup} {ComponentType}. Processing in priority order...", 
+                    requestsList.Count, bloodGroupName, componentTypeName);
+                
+                int fulfilledCount = 0;
+                int attemptedCount = 0;
+                
+                foreach (var request in requestsList)
+                {
+                    attemptedCount++;
+                    var requestType = request.IsEmergency ? "🚨 EMERGENCY" : "📝 REGULAR";
+                    var requestAge = (DateTimeOffset.UtcNow - request.RequestDate).TotalHours;
+                    
+                    _logger.LogInformation("🔄 Processing {RequestType} request {RequestId} (Age: {Age:F1} hours, Units: {Units})", 
+                        requestType, request.Id, requestAge, request.QuantityUnits);
+                    
+                    var statusBeforeAttempt = request.Status;
+                    await TryAutoFulfillBloodRequestAsync(request.Id);
+                    
+                    // Check if request was fulfilled
+                    var updatedRequest = await _unitOfWork.BloodRequests.GetByIdAsync(request.Id);
+                    if (updatedRequest?.Status == "Fulfilled")
+                    {
+                        fulfilledCount++;
+                        _logger.LogInformation("✅ Successfully fulfilled {RequestType} request {RequestId}", requestType, request.Id);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("⏳ Request {RequestId} not fulfilled - Status: {Status}", request.Id, updatedRequest?.Status);
+                    }
+                    
+                    // Add a small delay between auto-fulfill attempts to avoid overwhelming the system
+                    await Task.Delay(100);
+                }
+                
+                // Log summary
+                _logger.LogInformation("📊 AUTO-FULFILL SUMMARY for {BloodGroup} {ComponentType}: " +
+                    "Attempted: {Attempted}, Fulfilled: {Fulfilled}, Remaining: {Remaining}", 
+                    bloodGroupName, componentTypeName, attemptedCount, fulfilledCount, attemptedCount - fulfilledCount);
+                
+                // Send summary notification if any requests were fulfilled
+                if (fulfilledCount > 0)
+                {
+                    await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    await _realTimeNotificationService.UpdateInventoryDashboard();
+                    
+                    _logger.LogInformation("🎉 Auto-fulfill process completed successfully! {Count} requests fulfilled for {BloodGroup} {ComponentType}", 
+                        fulfilledCount, bloodGroupName, componentTypeName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error during auto-fulfill process for blood group {BloodGroupId} and component {ComponentTypeId}", 
+                    bloodGroupId, componentTypeId);
+                
+                // Don't throw the exception as this is a background process
+                // Log the error and continue with other operations
+            }
+        }
+
+        #endregion
+
+        #region Enhanced Helper Methods
+
+        /// <summary>
+        /// Get comprehensive inventory status for auto-fulfill decision making
+        /// </summary>
+        private async Task<(int totalAvailable, List<(Guid requestId, int unitsNeeded, bool isEmergency, double ageHours)> pendingRequests)> 
+            GetInventoryAndPendingRequestsAsync(Guid bloodGroupId, Guid componentTypeId)
+        {
+            try
+            {
+                // Get available inventory
+                var availableInventory = await _unitOfWork.BloodInventories.FindAsync(i =>
+                    i.BloodGroupId == bloodGroupId &&
+                    i.ComponentTypeId == componentTypeId &&
+                    i.Status == "Available" &&
+                    i.ExpirationDate > DateTimeOffset.UtcNow);
+                
+                var totalAvailable = availableInventory.Sum(i => i.QuantityUnits);
+                
+                // Get pending requests
+                var pendingRequests = await _unitOfWork.BloodRequests.FindAsync(r =>
+                    r.BloodGroupId == bloodGroupId &&
+                    r.ComponentTypeId == componentTypeId &&
+                    (r.Status == "Pending" || r.Status == "Processing" || r.Status == "AwaitingDonation" || r.Status == "DonorConfirmed") &&
+                    r.IsActive &&
+                    r.DeletedTime == null);
+                
+                var pendingRequestsInfo = pendingRequests
+                    .Select(r => (
+                        requestId: r.Id,
+                        unitsNeeded: r.QuantityUnits,
+                        isEmergency: r.IsEmergency,
+                        ageHours: (DateTimeOffset.UtcNow - r.RequestDate).TotalHours
+                    ))
+                    .OrderBy(r => r.isEmergency ? 0 : 1) // Emergency first
+                    .ThenBy(r => r.ageHours) // Then by age (oldest first)
+                    .ToList();
+                
+                return (totalAvailable, pendingRequestsInfo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting inventory and pending requests info");
+                return (0, new List<(Guid, int, bool, double)>());
+            }
+        }
+
+        /// <summary>
+        /// Enhanced auto-fulfill with intelligent prioritization
+        /// </summary>
+        private async Task IntelligentAutoFulfillAsync(Guid bloodGroupId, Guid componentTypeId, int newInventoryUnits)
+        {
+            try
+            {
+                var bloodGroup = await _unitOfWork.BloodGroups.GetByIdAsync(bloodGroupId);
+                var componentType = await _unitOfWork.ComponentTypes.GetByIdAsync(componentTypeId);
+                var bloodGroupName = bloodGroup?.GroupName ?? "Unknown";
+                var componentTypeName = componentType?.Name ?? "Unknown";
+                
+                _logger.LogInformation("🧠 INTELLIGENT AUTO-FULFILL started for {BloodGroup} {ComponentType} (+{NewUnits} units)", 
+                    bloodGroupName, componentTypeName, newInventoryUnits);
+                
+                var (totalAvailable, pendingRequests) = await GetInventoryAndPendingRequestsAsync(bloodGroupId, componentTypeId);
+                
+                if (!pendingRequests.Any())
+                {
+                    _logger.LogInformation("✅ No pending requests found - inventory will be available for future needs");
+                    return;
+                }
+                
+                _logger.LogInformation("📊 INVENTORY STATUS: {Available} units available, {Requests} pending requests", 
+                    totalAvailable, pendingRequests.Count);
+                
+                // Calculate fulfillment strategy
+                int totalNeeded = pendingRequests.Sum(r => r.unitsNeeded);
+                var emergencyRequests = pendingRequests.Where(r => r.isEmergency).ToList();
+                var regularRequests = pendingRequests.Where(r => !r.isEmergency).ToList();
+                
+                _logger.LogInformation("📋 REQUESTS BREAKDOWN: {Emergency} emergency ({EmergencyUnits} units), {Regular} regular ({RegularUnits} units)", 
+                    emergencyRequests.Count, emergencyRequests.Sum(r => r.unitsNeeded),
+                    regularRequests.Count, regularRequests.Sum(r => r.unitsNeeded));
+                
+                if (totalAvailable >= totalNeeded)
+                {
+                    _logger.LogInformation("🎉 FULL FULFILLMENT POSSIBLE: Can fulfill all {Count} requests!", pendingRequests.Count);
+                }
+                else
+                {
+                    _logger.LogInformation("⚠️ PARTIAL FULFILLMENT: Can only fulfill {Available}/{Needed} units", totalAvailable, totalNeeded);
+                }
+                
+                // Process requests in priority order
+                int fulfilledCount = 0;
+                int fulfilledUnits = 0;
+                
+                foreach (var request in pendingRequests)
+                {
+                    if (totalAvailable < request.unitsNeeded)
+                    {
+                        _logger.LogInformation("❌ Insufficient inventory for request {RequestId} ({Needed} units, {Available} available)", 
+                            request.requestId, request.unitsNeeded, totalAvailable);
+                        break;
+                    }
+                    
+                    var requestType = request.isEmergency ? "🚨 EMERGENCY" : "📝 REGULAR";
+                    _logger.LogInformation("🔄 Processing {Type} request {RequestId} (Age: {Age:F1}h, Units: {Units})", 
+                        requestType, request.requestId, request.ageHours, request.unitsNeeded);
+                    
+                    await TryAutoFulfillBloodRequestAsync(request.requestId);
+                    
+                    // Check if fulfilled successfully
+                    var updatedRequest = await _unitOfWork.BloodRequests.GetByIdAsync(request.requestId);
+                    if (updatedRequest?.Status == "Fulfilled")
+                    {
+                        fulfilledCount++;
+                        fulfilledUnits += request.unitsNeeded;
+                        totalAvailable -= request.unitsNeeded; // Update available count
+                        
+                        _logger.LogInformation("✅ {Type} request {RequestId} fulfilled successfully", requestType, request.requestId);
+                    }
+                    
+                    // Small delay between attempts
+                    await Task.Delay(100);
+                }
+                
+                // Final summary
+                _logger.LogInformation("🎯 AUTO-FULFILL COMPLETED: {Fulfilled}/{Total} requests fulfilled, {Units} units dispensed", 
+                    fulfilledCount, pendingRequests.Count, fulfilledUnits);
+                
+                if (fulfilledCount > 0)
+                {
+                    await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    await _realTimeNotificationService.UpdateInventoryDashboard();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in intelligent auto-fulfill process");
+            }
+        }
+
+        /// <summary>
+        /// Generate auto-fulfill status report for debugging and monitoring
+        /// </summary>
+        public async Task<ApiResponse<object>> GetAutoFulfillStatusReportAsync(Guid? bloodGroupId = null, Guid? componentTypeId = null)
+        {
+            try
+            {
+                var report = new
+                {
+                    GeneratedAt = DateTimeOffset.UtcNow,
+                    BloodGroups = new List<object>()
+                };
+
+                var bloodGroups = bloodGroupId.HasValue 
+                    ? new[] { await _unitOfWork.BloodGroups.GetByIdAsync(bloodGroupId.Value) }.Where(bg => bg != null)
+                    : await _unitOfWork.BloodGroups.GetAllAsync();
+
+                foreach (var bloodGroup in bloodGroups)
+                {
+                    var componentTypes = componentTypeId.HasValue 
+                        ? new[] { await _unitOfWork.ComponentTypes.GetByIdAsync(componentTypeId.Value) }.Where(ct => ct != null)
+                        : await _unitOfWork.ComponentTypes.GetAllAsync();
+
+                    var bloodGroupData = new
+                    {
+                        BloodGroupId = bloodGroup.Id,
+                        BloodGroupName = bloodGroup.GroupName,
+                        Components = new List<object>()
+                    };
+
+                    foreach (var component in componentTypes)
+                    {
+                        var (totalAvailable, pendingRequests) = await GetInventoryAndPendingRequestsAsync(bloodGroup.Id, component.Id);
+                        
+                        var componentData = new
+                        {
+                            ComponentTypeId = component.Id,
+                            ComponentTypeName = component.Name,
+                            Inventory = new
+                            {
+                                AvailableUnits = totalAvailable,
+                                Status = totalAvailable > 0 ? "Available" : "Empty"
+                            },
+                            PendingRequests = new
+                            {
+                                Total = pendingRequests.Count,
+                                Emergency = pendingRequests.Count(r => r.isEmergency),
+                                Regular = pendingRequests.Count(r => !r.isEmergency),
+                                TotalUnitsNeeded = pendingRequests.Sum(r => r.unitsNeeded),
+                                CanFulfillAll = totalAvailable >= pendingRequests.Sum(r => r.unitsNeeded),
+                                Details = pendingRequests.Select(r => new
+                                {
+                                    RequestId = r.requestId,
+                                    UnitsNeeded = r.unitsNeeded,
+                                    IsEmergency = r.isEmergency,
+                                    AgeHours = Math.Round(r.ageHours, 1),
+                                    CanBeFulfilled = totalAvailable >= r.unitsNeeded
+                                }).ToList()
+                            }
+                        };
+
+                        ((List<object>)bloodGroupData.Components).Add(componentData);
+                    }
+
+                    ((List<object>)report.BloodGroups).Add(bloodGroupData);
+                }
+
+                return new ApiResponse<object>(report, "Auto-fulfill status report generated successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating auto-fulfill status report");
+                return new ApiResponse<object>(
+                    HttpStatusCode.InternalServerError,
+                    "Error generating auto-fulfill status report");
+            }
         }
 
         #endregion

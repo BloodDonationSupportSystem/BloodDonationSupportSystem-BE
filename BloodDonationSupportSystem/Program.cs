@@ -171,7 +171,6 @@ builder.Services.AddScoped<IDonationAppointmentRequestService, DonationAppointme
 // Analytics, Dashboard and Report Services
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
-builder.Services.AddScoped<IReportService, ReportService>();
 
 // Location Capacity Service
 builder.Services.AddScoped<ILocationCapacityService, LocationCapacityService>();

@@ -11,6 +11,7 @@ using Repositories.Interface;
 using Services.Interface;
 using Shared.Models;
 using Shared.Utilities;
+using Shared.Constants; // 🔥 NEW: Import constants
 using AutoMapper;
 using Microsoft.AspNetCore.SignalR;
 
@@ -54,9 +55,7 @@ namespace Services.Implementation
                 }
 
                 // Find blood requests by the specified user
-                var bloodRequests = await _unitOfWork.BloodRequests.FindAsync(r =>
-                    r.RequestedBy == userId &&
-                    r.DeletedTime == null);
+                var bloodRequests = await _unitOfWork.BloodRequests.GetByUserIdWithDetailsAsync(userId);
 
                 var bloodRequestDtos = bloodRequests
                     .OrderByDescending(r => r.RequestDate)
@@ -930,25 +929,21 @@ namespace Services.Implementation
                 }
 
                 // Validate the status value
-                var validStatuses = new[] { "Pending", "Processing", "Fulfilled", "Cancelled", "Expired", "Picked Up" };
-                if (!validStatuses.Contains(status))
+                if (!BloodRequestStatus.AllStatuses.Contains(status))
                 {
                     _logger?.LogWarning("Invalid status value: {Status}", status);
                     return new ApiResponse<BloodRequestDto>(
                         HttpStatusCode.BadRequest, 
-                        $"Invalid status value. Valid statuses are: {string.Join(", ", validStatuses)}");
+                        $"Invalid status value. Valid statuses are: {string.Join(", ", BloodRequestStatus.AllStatuses)}");
                 }
 
-                // Store previous status for notifications or logging
-                string previousStatus = bloodRequest.Status;
-
                 // **XỬ LÝ ĐẶC BIỆT CHO STATUS "Picked Up"**
-                if (status == "Picked Up")
+                if (status == BloodRequestStatus.PickedUp)
                 {
                     // Kiểm tra xem request đã được fulfilled chưa
-                    if (previousStatus != "Fulfilled")
+                    if (bloodRequest.Status != BloodRequestStatus.Fulfilled)
                     {
-                        _logger?.LogWarning("Cannot set status to 'Picked Up' for request {RequestId} with status {CurrentStatus}", id, previousStatus);
+                        _logger?.LogWarning("Cannot set status to 'Picked Up' for request {RequestId} with status {CurrentStatus}", id, bloodRequest.Status);
                         return new ApiResponse<BloodRequestDto>(
                             HttpStatusCode.BadRequest,
                             "Only fulfilled blood requests can be marked as picked up");
@@ -1029,7 +1024,7 @@ namespace Services.Implementation
                 }
 
                 // **XỬ LÝ ROLLBACK INVENTORY KHI CANCEL REQUEST ĐÃ FULFILLED**
-                if (previousStatus == "Fulfilled" && status == "Cancelled")
+                if (bloodRequest.Status == "Fulfilled" && status == "Cancelled")
                 {
                     _logger?.LogInformation("Cancelling fulfilled blood request {RequestId}. Rolling back inventory...", id);
                     
@@ -1051,14 +1046,114 @@ namespace Services.Implementation
                     _logger?.LogInformation("Completed inventory rollback for cancelled request {RequestId}. {ItemCount} items restored", 
                         id, rolledBackCount);
                 }
-                else if (previousStatus == "Fulfilled" && status != "Fulfilled" && status != "Picked Up")
+                else if (bloodRequest.Status == "Fulfilled" && status != "Fulfilled" && status != "Picked Up")
                 {
                     // Nếu từ Fulfilled chuyển sang trạng thái khác (không phải Cancelled hoặc Picked Up), cũng cần cảnh báo
                     _logger?.LogWarning("Changing fulfilled request {RequestId} from {PreviousStatus} to {NewStatus}. Consider inventory implications.", 
-                        id, previousStatus, status);
+                        id, bloodRequest.Status, status);
                 }
                 
                 // **CẬP NHẬT STATUS THÔNG THƯỜNG**
+                bloodRequest.Status = status;
+                bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
+
+                _unitOfWork.BloodRequests.Update(bloodRequest);
+                await _unitOfWork.CompleteAsync();
+
+                _logger?.LogInformation("Blood request status updated from {PreviousStatus} to {NewStatus}. ID: {RequestId}", 
+                    bloodRequest.Status, status, id);
+                
+                // Reload to get all navigation properties
+                bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(bloodRequest.Id);
+                var bloodRequestDto = MapToDto(bloodRequest);
+
+                // Send real-time notifications
+                if (_realTimeNotificationService != null)
+                {
+                    string notificationMessage = bloodRequest.Status == "Fulfilled" && status == "Cancelled" 
+                        ? "Blood request cancelled - inventory has been restored"
+                        : $"Status updated from {bloodRequest.Status} to {status}";
+                        
+                    await _realTimeNotificationService.NotifyBloodRequestStatusChange(
+                        id, status, notificationMessage);
+                    
+                    if (bloodRequest.IsEmergency)
+                    {
+                        await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(
+                            id, status, $"Emergency request status changed to {status}");
+                        await _realTimeNotificationService.UpdateEmergencyDashboard();
+                    }
+                    
+                    await _realTimeNotificationService.UpdateBloodRequestDashboard();
+                    
+                    // Update inventory dashboard if inventory was affected
+                    if (bloodRequest.Status == "Fulfilled" && status == "Cancelled")
+                    {
+                        await _realTimeNotificationService.UpdateInventoryDashboard();
+                    }
+                }
+
+                return new ApiResponse<BloodRequestDto>(bloodRequestDto, "Blood request status updated successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error occurred while updating blood request status. ID: {RequestId}", id);
+                return new ApiResponse<BloodRequestDto>(HttpStatusCode.InternalServerError, ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<BloodRequestDto>> UpdateBloodRequestStatusWithNotesAsync(Guid id, string status, string notes = null)
+        {
+            try
+            {
+                _logger?.LogInformation("Updating blood request status with notes. ID: {RequestId}, New Status: {Status}", id, status);
+                
+                var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(id);
+                if (bloodRequest == null)
+                {
+                    _logger?.LogWarning("Blood request with ID {RequestId} not found for status update", id);
+                    return new ApiResponse<BloodRequestDto>(HttpStatusCode.NotFound, $"Blood request with ID {id} not found");
+                }
+
+                // Validate the status value
+                if (!BloodRequestStatus.AllStatuses.Contains(status))
+                {
+                    _logger?.LogWarning("Invalid status value: {Status}", status);
+                    return new ApiResponse<BloodRequestDto>(
+                        HttpStatusCode.BadRequest, 
+                        $"Invalid status value. Valid statuses are: {string.Join(", ", BloodRequestStatus.AllStatuses)}");
+                }
+
+                string previousStatus = bloodRequest.Status;
+                var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+                
+                // Handle rollback logic for cancelled fulfilled requests
+                if (previousStatus == "Fulfilled" && status == "Cancelled")
+                {
+                    _logger?.LogInformation("Cancelling fulfilled blood request {RequestId}. Rolling back inventory...", id);
+                    int rolledBackCount = await RollbackInventoryAsync(id);
+                    
+                    bloodRequest.FulfilledDate = null;
+                    bloodRequest.FulfilledByStaffId = null;
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + 
+                        $"<div class='cancellation-note'>" +
+                        $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                        $"<span class='action'>Đã hủy yêu cầu</span><br/>" +
+                        $"<strong>Hoàn trả kho:</strong> {rolledBackCount} đơn vị được khôi phục" +
+                        (!string.IsNullOrEmpty(notes) ? $"<br/><strong>Lý do:</strong> {notes}" : "") +
+                        $"</div>";
+                }
+                else if (!string.IsNullOrEmpty(notes))
+                {
+                    // Add status change notes
+                    bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + 
+                        $"<div class='status-change-note'>" +
+                        $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                        $"<span class='action'>Cập nhật trạng thái: {previousStatus} → {status}</span><br/>" +
+                        $"<span class='note-content'>{notes}</span>" +
+                        $"</div>";
+                }
+                
                 bloodRequest.Status = status;
                 bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
 
@@ -1075,8 +1170,8 @@ namespace Services.Implementation
                 // Send real-time notifications
                 if (_realTimeNotificationService != null)
                 {
-                    string notificationMessage = previousStatus == "Fulfilled" && status == "Cancelled" 
-                        ? "Blood request cancelled - inventory has been restored"
+                    string notificationMessage = !string.IsNullOrEmpty(notes) 
+                        ? $"Status updated from {previousStatus} to {status}: {notes}"
                         : $"Status updated from {previousStatus} to {status}";
                         
                     await _realTimeNotificationService.NotifyBloodRequestStatusChange(
@@ -1091,7 +1186,6 @@ namespace Services.Implementation
                     
                     await _realTimeNotificationService.UpdateBloodRequestDashboard();
                     
-                    // Update inventory dashboard if inventory was affected
                     if (previousStatus == "Fulfilled" && status == "Cancelled")
                     {
                         await _realTimeNotificationService.UpdateInventoryDashboard();
@@ -1571,8 +1665,12 @@ namespace Services.Implementation
                         "<div style='margin: 10px 0; padding: 10px; background: #ffe6e6; border-left: 4px solid #dc3545; border-radius: 4px;'>")
                     .Replace("<div class='inventory-info'>", 
                         "<div style='margin: 5px 0; padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.9em;'>")
+                    .Replace("<div class='status-change-note'>", 
+                        "<div style='margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>")
                     .Replace("<span class='action'>", 
                         "<span style='color: #495057; font-weight: bold;'>")
+                    .Replace("<span class='note-content'>", 
+                        "<span style='color: #6c757d; font-style: italic;'>")
                     .Replace("<strong>", 
                         "<strong style='color: #333;'>")
                     .Replace("<em>", 

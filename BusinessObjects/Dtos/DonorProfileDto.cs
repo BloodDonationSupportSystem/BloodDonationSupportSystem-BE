@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using Shared.Models;
 using System.ComponentModel.DataAnnotations;
 
@@ -20,23 +20,16 @@ namespace BusinessObjects.Dtos
     /// </summary>
     public class NearbyDonorSearchDto
     {
-        [Required(ErrorMessage = "Latitude is required")]
-        public double Latitude { get; set; }
+        [Required] public double Latitude { get; set; }
+        [Required] public double Longitude { get; set; }
+        [Range(0.1, 500)] public double RadiusKm { get; set; } = 10.0;
 
-        [Required(ErrorMessage = "Longitude is required")]
-        public double Longitude { get; set; }
-
-        [Range(0.1, 500, ErrorMessage = "Radius must be between 0.1 and 500 kilometers")]
-        public double RadiusKm { get; set; } = 10.0;
-
+        // ðŸ”¥ SIMPLIFIED - Chá»‰ giá»¯ cÃ¡c parameters cáº§n thiáº¿t
         public Guid? BloodGroupId { get; set; }
-        public bool? IsAvailable { get; set; } = true;
-        public bool? IsAvailableNow { get; set; } = true;
-        public bool? IsAvailableForEmergency { get; set; } = false;
-        public bool? ForEmergency { get; set; } = false;
-        public DateTimeOffset? AvailableDate { get; set; }
-        public bool? IsEligible { get; set; } = true;
+        public bool? ForEmergency { get; set; }  // Chá»‰ giá»¯ 1 emergency flag
+                                                 // Remove: IsAvailable, IsAvailableNow, IsAvailableForEmergency, IsEligible
     }
+
     public class DonorProfileDto
     {
         public Guid Id { get; set; }
@@ -68,7 +61,7 @@ namespace BusinessObjects.Dtos
 
     public class WalkInDonorProfileDto
     {
-        // Thông tin cá nhân b?t bu?c
+        // ThÃ´ng tin cÃ¡ nhÃ¢n b?t bu?c
         [Required]
         public string FirstName { get; set; }
 
@@ -84,21 +77,21 @@ namespace BusinessObjects.Dtos
         [Required]
         public Guid BloodGroupId { get; set; }
 
-        // Thông tin nh?n d?ng
+        // ThÃ´ng tin nh?n d?ng
         [Required]
         public string IdentityNumber { get; set; }
 
-        // Thông tin liên h? và ??a ch? (có th? không b?t bu?c)
+        // ThÃ´ng tin liÃªn h? vÃ  ??a ch? (cÃ³ th? khÃ´ng b?t bu?c)
         public string Email { get; set; }
 
         public string Address { get; set; }
 
-        // Thông tin s?c kh?e
+        // ThÃ´ng tin s?c kh?e
         public bool HasDonatedBefore { get; set; }
 
         public DateTimeOffset? LastDonationDate { get; set; }
 
-        // Thông tin b? sung
+        // ThÃ´ng tin b? sung
         public string Notes { get; set; }
     }
 

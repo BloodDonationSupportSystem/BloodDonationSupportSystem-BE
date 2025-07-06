@@ -20,6 +20,7 @@ namespace Services.Implementation
         private readonly ILogger<DonationAppointmentRequestService> _logger;
         private readonly INotificationService _notificationService;
         private readonly IEmailService _emailService;
+        private readonly IBloodRequestService _bloodRequestService; // 🔥 NEW: Inject BloodRequestService
 
         // Default capacity per time slot per location
         private const int DefaultTimeSlotCapacity = 10;
@@ -29,13 +30,15 @@ namespace Services.Implementation
             IMapper mapper,
             ILogger<DonationAppointmentRequestService> logger,
             INotificationService notificationService,
-            IEmailService emailService)
+            IEmailService emailService,
+            IBloodRequestService bloodRequestService) // 🔥 NEW: Add parameter
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
             _notificationService = notificationService;
             _emailService = emailService;
+            _bloodRequestService = bloodRequestService; // 🔥 NEW: Assign
         }
 
         public async Task<ApiResponse<DonationAppointmentRequestDto>> UpdateAppointmentStatusAsync(Guid requestId, UpdateAppointmentStatusDto updateDto)
@@ -341,9 +344,19 @@ namespace Services.Implementation
                 var appointmentRequest = _mapper.Map<DonationAppointmentRequest>(requestDto);
                 appointmentRequest.InitiatedByUserId = staffUserId;
                 appointmentRequest.CreatedTime = DateTimeOffset.UtcNow;
+                appointmentRequest.RelatedBloodRequestId = requestDto.RelatedBloodRequestId;
 
                 await _unitOfWork.DonationAppointmentRequests.AddAsync(appointmentRequest);
                 await _unitOfWork.CompleteAsync();
+
+                // 🔥 NEW: Update related blood request status if appointment is created due to insufficient inventory
+                if (appointmentRequest.RelatedBloodRequestId.HasValue)
+                {
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        appointmentRequest.RelatedBloodRequestId.Value, 
+                        "Processing", 
+                        $"Appointment được tạo do thiếu máu trong kho. Donor được assign: {donor.User?.FirstName} {donor.User?.LastName}");
+                }
 
                 // Send notification to donor
                 await SendDonorNotificationAsync(appointmentRequest.Id, "You have been assigned a donation appointment");
@@ -405,6 +418,15 @@ namespace Services.Implementation
                     -1 // giảm capacity
                 );
                 
+                // 🔥 NEW: Update related blood request status
+                if (request.RelatedBloodRequestId.HasValue)
+                {
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        request.RelatedBloodRequestId.Value, 
+                        "AwaitingDonation", 
+                        $"Appointment đã được approve. Chờ donor xác nhận và đến hiến máu vào {responseDto.ConfirmedDate?.ToString("dd/MM/yyyy") ?? request.PreferredDate.ToString("dd/MM/yyyy")}");
+                }
+                
                 // Send notification to donor
                 await SendDonorNotificationAsync(requestId, "Your donation appointment request has been approved");
                 
@@ -464,6 +486,25 @@ namespace Services.Implementation
                 await _unitOfWork.DonationAppointmentRequests.UpdateStatusAsync(requestId, newStatus, donorUserId);
                 
                 await _unitOfWork.CompleteAsync();
+
+                // 🔥 NEW: Update related blood request status
+                if (request.RelatedBloodRequestId.HasValue)
+                {
+                    if (responseDto.Accepted)
+                    {
+                        await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                            request.RelatedBloodRequestId.Value, 
+                            "DonorConfirmed", 
+                            $"Donor đã chấp nhận appointment. Chờ đến ngày hiến máu: {request.PreferredDate:dd/MM/yyyy}");
+                    }
+                    else
+                    {
+                        await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                            request.RelatedBloodRequestId.Value, 
+                            "Processing", 
+                            $"Donor đã từ chối appointment. Cần tìm donor khác. Lý do: {responseDto.Notes ?? "Không có lý do"}");
+                    }
+                }
 
                 // Send notification to staff
                 var message = responseDto.Accepted 
@@ -669,6 +710,15 @@ namespace Services.Implementation
                     1
                 );
 
+                // 🔥 NEW: Update related blood request status
+                if (request.RelatedBloodRequestId.HasValue)
+                {
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        request.RelatedBloodRequestId.Value, 
+                        "Processing", 
+                        $"Appointment bị từ chối bởi staff. Lý do: {responseDto.Notes ?? "Không có lý do"}. Cần tìm giải pháp khác.");
+                }
+
                 // Send notification to donor
                 await SendDonorNotificationAsync(requestId, "Your donation appointment request has been rejected");
                 
@@ -733,6 +783,15 @@ namespace Services.Implementation
                     1
                 );
 
+                // 🔥 NEW: Update related blood request status
+                if (request.RelatedBloodRequestId.HasValue)
+                {
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        request.RelatedBloodRequestId.Value, 
+                        "Processing", 
+                        $"Donor đã từ chối appointment. Cần tìm donor khác. Lý do: {responseDto.Notes ?? "Không có lý do"}");
+                }
+
                 // Send notification to staff
                 await SendStaffNotificationAsync(requestId, "Donor has rejected the appointment assignment");
                 
@@ -795,6 +854,15 @@ namespace Services.Implementation
                     1
                 );
 
+                // 🔥 NEW: Update related blood request status
+                if (request.RelatedBloodRequestId.HasValue)
+                {
+                    await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
+                        request.RelatedBloodRequestId.Value, 
+                        "Processing", 
+                        $"Appointment bị hủy bởi donor: {donor.User?.FirstName} {donor.User?.LastName}. Cần tìm donor khác hoặc giải pháp thay thế.");
+                }
+
                 // Send notification to staff
                 await SendStaffNotificationAsync(requestId, "Donor has cancelled the appointment request");
                 
@@ -811,6 +879,7 @@ namespace Services.Implementation
                     "Error occurred while cancelling appointment request");
             }
         }
+
         public Task<ApiResponse<DonationAppointmentRequestDto>> ModifyAppointmentRequestAsync(Guid requestId, StaffAppointmentResponseDto responseDto, Guid staffUserId) => throw new NotImplementedException();
         public Task<ApiResponse<DonationAppointmentRequestDto>> ConvertToWorkflowAsync(Guid requestId, Guid staffUserId) => throw new NotImplementedException();
         public Task<ApiResponse> LinkToWorkflowAsync(Guid requestId, Guid workflowId) => throw new NotImplementedException();

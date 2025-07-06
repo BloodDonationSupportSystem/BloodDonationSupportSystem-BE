@@ -225,7 +225,6 @@ namespace BloodDonationSupportSystem.Controllers
                 return HandleResponse(HandleValidationErrors<IEnumerable<DonorProfileDto>>(ModelState));
             }
             
-            // Set emergency flag to true for emergency donors
             searchDto.ForEmergency = true;
             
             var response = await _donorProfileService.GetAvailableDonorsByDistanceAsync(searchDto);

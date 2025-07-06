@@ -179,6 +179,12 @@ namespace BusinessObjects.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasOne(dar => dar.RelatedBloodRequest)
+                .WithMany()
+                .HasForeignKey(dar => dar.RelatedBloodRequestId)
+                .OnDelete(DeleteBehavior.SetNull); // SetNull ?? không xóa appointment khi blood request b? xóa
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
                 .HasOne(dar => dar.InitiatedByUser)
                 .WithMany()
                 .HasForeignKey(dar => dar.InitiatedByUserId)
@@ -255,6 +261,9 @@ namespace BusinessObjects.Data
 
             modelBuilder.Entity<DonationAppointmentRequest>()
                 .HasIndex(dar => new { dar.LocationId, dar.PreferredDate });
+
+            modelBuilder.Entity<DonationAppointmentRequest>()
+                .HasIndex(dar => dar.RelatedBloodRequestId);
 
             modelBuilder.Entity<DonationAppointmentRequest>()
                 .HasIndex(dar => new { dar.IsUrgent, dar.Priority });

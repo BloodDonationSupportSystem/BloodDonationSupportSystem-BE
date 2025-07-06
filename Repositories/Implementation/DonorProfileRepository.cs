@@ -1,4 +1,4 @@
-using BusinessObjects.Data;
+﻿using BusinessObjects.Data;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +7,7 @@ using Repositories.Interface;
 using Shared.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -52,9 +53,8 @@ namespace Repositories.Implementation
 
             if (onlyAvailable)
             {
-                // Only get donors who are available for donation
+                // Only get donors who are currently available
                 query = query.Where(dp =>
-                    dp.IsAvailableForEmergency &&
                     (dp.NextAvailableDonationDate == null || dp.NextAvailableDonationDate <= DateTimeOffset.UtcNow));
             }
 
@@ -86,7 +86,7 @@ namespace Repositories.Implementation
                 query = query.Where(dp => dp.TotalDonations >= parameters.MinimumDonations.Value);
             }
 
-            // L?c theo t�nh tr?ng s?n s�ng hi?n m�u
+            // Lọc theo tình trạng sẵn sàng hiến máu
             if (parameters.IsAvailableNow.HasValue && parameters.IsAvailableNow.Value)
             {
                 var now = DateTimeOffset.UtcNow;
@@ -154,7 +154,7 @@ namespace Repositories.Implementation
             return (donorProfiles, totalCount);
         }
 
-        // Tri?n khai ph??ng th?c t�m ki?m ng??i hi?n m�u ?ang s?n s�ng
+        // Triển khai phương thức tìm kiếm người hiến máu đang sẵn sàng
         public async Task<IEnumerable<DonorProfile>> GetAvailableDonorsAsync(DateTimeOffset? date = null, bool? forEmergency = null)
         {
             var query = _dbSet
@@ -162,19 +162,19 @@ namespace Repositories.Implementation
                 .Include(dp => dp.BloodGroup)
                 .Where(dp => dp.DeletedTime == null);
 
-            // N?u c� ng�y c? th?, ki?m tra ng??i hi?n m�u s?n s�ng v�o ng�y ?�
+            // Nếu có ngày cụ thể, kiểm tra người hiến máu sẵn sàng vào ngày đó
             if (date.HasValue)
             {
                 query = query.Where(dp => dp.NextAvailableDonationDate == null || dp.NextAvailableDonationDate <= date.Value);
             }
             else
             {
-                // N?u kh�ng c� ng�y c? th?, ki?m tra ng??i hi?n m�u s?n s�ng hi?n t?i
+                // Nếu không có ngày cụ thể, kiểm tra người hiến máu sẵn sàng hiện tại
                 var now = DateTimeOffset.UtcNow;
                 query = query.Where(dp => dp.NextAvailableDonationDate == null || dp.NextAvailableDonationDate <= now);
             }
 
-            // N?u c?n l?c theo t�nh tr?ng s?n s�ng kh?n c?p
+            // Nếu cần lọc theo tình trạng sẵn sàng khẩn cấp
             if (forEmergency.HasValue)
             {
                 query = query.Where(dp => dp.IsAvailableForEmergency == forEmergency.Value);
@@ -183,7 +183,7 @@ namespace Repositories.Implementation
             return await query.ToListAsync();
         }
 
-        // Tri?n khai ph??ng th?c c?p nh?t th�ng tin s?n s�ng hi?n m�u
+        // Triển khai phương thức cập nhật thông tin sẵn sàng hiến máu
         public async Task<bool> UpdateDonationAvailabilityAsync(Guid id, DateTimeOffset? nextAvailableDate, bool isAvailableForEmergency, string preferredTime)
         {
             var donorProfile = await _dbSet.FindAsync(id);
@@ -228,7 +228,7 @@ namespace Repositories.Implementation
                     Donor = dp,
                     Distance = CalculateDistance(latitude, longitude, dp.Latitude, dp.Longitude)
                 })
-                .Where(x => x.Distance <= radiusKm)
+                .Where(x => x.Distance <= radiusKm && x.Distance != double.MaxValue)
                 .OrderBy(x => x.Distance)
                 .Select(x => x.Donor)
                 .ToList();
@@ -250,21 +250,14 @@ namespace Repositories.Implementation
                 .Include(dp => dp.BloodGroup)
                 .Where(dp => dp.DeletedTime == null);
 
-            // Filter by availability
-            if (date.HasValue)
-            {
-                query = query.Where(dp => dp.NextAvailableDonationDate == null || dp.NextAvailableDonationDate <= date.Value);
-            }
-            else
-            {
-                var now = DateTimeOffset.UtcNow;
-                query = query.Where(dp => dp.NextAvailableDonationDate == null || dp.NextAvailableDonationDate <= now);
-            }
+            // Simplified availability filter
+            var checkDate = date ?? DateTimeOffset.UtcNow;
+            query = query.Where(dp => dp.NextAvailableDonationDate == null || dp.NextAvailableDonationDate <= checkDate);
 
-            // Filter by emergency availability
-            if (forEmergency.HasValue)
+            // Only filter for emergency if explicitly TRUE
+            if (forEmergency == true)
             {
-                query = query.Where(dp => dp.IsAvailableForEmergency == forEmergency.Value);
+                query = query.Where(dp => dp.IsAvailableForEmergency == true);
             }
 
             // Filter by blood group if specified
@@ -284,7 +277,7 @@ namespace Repositories.Implementation
                     Donor = dp,
                     Distance = CalculateDistance(latitude, longitude, dp.Latitude, dp.Longitude)
                 })
-                .Where(x => x.Distance <= radiusKm)
+                .Where(x => x.Distance <= radiusKm && x.Distance != double.MaxValue)
                 .OrderBy(x => x.Distance)
                 .Select(x => x.Donor)
                 .ToList();
@@ -360,7 +353,7 @@ namespace Repositories.Implementation
                     Donor = dp,
                     Distance = CalculateDistance(latitude, longitude, dp.Latitude, dp.Longitude)
                 })
-                .Where(x => x.Distance <= radiusKm)
+                .Where(x => x.Distance <= radiusKm && x.Distance != double.MaxValue)
                 .ToList();
 
             // Get total count for pagination
@@ -403,10 +396,13 @@ namespace Repositories.Implementation
         // Helper method to calculate distance between two coordinates
         private double CalculateDistance(double lat1, double lon1, string lat2Str, string lon2Str)
         {
-            if (double.TryParse(lat2Str, out double lat2) && double.TryParse(lon2Str, out double lon2))
+            if (double.TryParse(lat2Str, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat2) &&
+                double.TryParse(lon2Str, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon2))
             {
-                return GeoCalculator.CalculateDistance(lat1, lon1, lat2, lon2);
+                var distance = GeoCalculator.CalculateDistance(lat1, lon1, lat2, lon2);
+                return distance;
             }
+
             return double.MaxValue; // Return maximum value for invalid coordinates
         }
     }

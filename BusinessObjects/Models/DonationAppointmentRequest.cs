@@ -25,6 +25,10 @@ namespace BusinessObjects.Models
         public Guid? ComponentTypeId { get; set; }
         public virtual ComponentType? ComponentType { get; set; }
         
+        // Link to related blood request (khi appointment ???c t?o do thi?u máu)
+        public Guid? RelatedBloodRequestId { get; set; }
+        public virtual BloodRequest? RelatedBloodRequest { get; set; }
+        
         // Request Origin and Status
         public string RequestType { get; set; } = string.Empty; // "DonorInitiated", "StaffInitiated"
         public Guid? InitiatedByUserId { get; set; } // User who created the request

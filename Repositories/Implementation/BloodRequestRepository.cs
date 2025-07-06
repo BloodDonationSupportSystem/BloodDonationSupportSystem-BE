@@ -18,6 +18,18 @@ namespace Repositories.Implementation
         {
         }
 
+        public async Task<IEnumerable<BloodRequest>> GetByUserIdWithDetailsAsync(Guid userId)
+        {
+            return await _dbSet
+                .Include(br => br.BloodGroup)
+                .Include(br => br.ComponentType)
+                .Include(br => br.Location)
+                .Include(br => br.User)
+                .Where(br => br.RequestedBy == userId && br.DeletedTime == null)
+                .OrderByDescending(br => br.RequestDate)
+                .ToListAsync();
+        }
+
         public async Task<(IEnumerable<BloodRequest> items, int totalCount)> GetPagedBloodRequestsAsync(BloodRequestParameters parameters)
         {
             IQueryable<BloodRequest> query = _dbSet

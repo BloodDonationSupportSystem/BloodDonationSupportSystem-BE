@@ -49,5 +49,8 @@ namespace Services.Interface
         
         // Complete a donation
         Task<ApiResponse<DonationEventDto>> CompleteDonationAsync(CompleteDonationDto completionDto);
+        
+        // Get auto-fulfill status report for monitoring and debugging
+        Task<ApiResponse<object>> GetAutoFulfillStatusReportAsync(Guid? bloodGroupId = null, Guid? componentTypeId = null);
     }
 }

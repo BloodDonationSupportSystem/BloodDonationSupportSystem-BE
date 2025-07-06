@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using BusinessObjects.Dtos;
 using Shared.Hubs;
+using System.Collections.Concurrent;
 
 namespace Services.Implementation
 {
@@ -15,6 +16,10 @@ namespace Services.Implementation
         private readonly IHubContext<NotificationHub> _hubContext;
         private readonly ILogger<RealTimeNotificationService> _logger;
 
+        // Connection tracking for dashboard updates
+        private static readonly ConcurrentDictionary<string, string> _dashboardConnections = new();
+        private static readonly ConcurrentDictionary<string, string> _emergencyConnections = new();
+
         public RealTimeNotificationService(
             IHubContext<NotificationHub> hubContext,
             ILogger<RealTimeNotificationService> logger)
@@ -22,6 +27,140 @@ namespace Services.Implementation
             _hubContext = hubContext;
             _logger = logger;
         }
+
+        #region Dashboard Real-Time Methods
+
+        public async Task RegisterForDashboardUpdates()
+        {
+            try
+            {
+                // This method is called when a user wants to register for dashboard updates
+                // The actual connection management is handled in the Hub
+                await _hubContext.Clients.Group("DashboardUpdates").SendAsync("DashboardUpdateRegistered");
+                _logger.LogInformation("Dashboard updates registration confirmed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registering for dashboard updates");
+            }
+        }
+
+        public async Task RegisterForEmergencyUpdates()
+        {
+            try
+            {
+                // This method is called when a user wants to register for emergency updates
+                await _hubContext.Clients.Group("EmergencyUpdates").SendAsync("EmergencyUpdateRegistered");
+                _logger.LogInformation("Emergency updates registration confirmed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registering for emergency updates");
+            }
+        }
+
+        public async Task RegisterConnectionForDashboardUpdates(string connectionId)
+        {
+            try
+            {
+                await _hubContext.Groups.AddToGroupAsync(connectionId, "DashboardUpdates");
+                _dashboardConnections.TryAdd(connectionId, connectionId);
+                _logger.LogInformation("Connection {ConnectionId} registered for dashboard updates", connectionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registering connection {ConnectionId} for dashboard updates", connectionId);
+            }
+        }
+
+        public async Task RegisterConnectionForEmergencyUpdates(string connectionId)
+        {
+            try
+            {
+                await _hubContext.Groups.AddToGroupAsync(connectionId, "EmergencyUpdates");
+                _emergencyConnections.TryAdd(connectionId, connectionId);
+                _logger.LogInformation("Connection {ConnectionId} registered for emergency updates", connectionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registering connection {ConnectionId} for emergency updates", connectionId);
+            }
+        }
+
+        public async Task UnregisterFromDashboardUpdates(string connectionId)
+        {
+            try
+            {
+                await _hubContext.Groups.RemoveFromGroupAsync(connectionId, "DashboardUpdates");
+                _dashboardConnections.TryRemove(connectionId, out _);
+                _logger.LogInformation("Connection {ConnectionId} unregistered from dashboard updates", connectionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error unregistering connection {ConnectionId} from dashboard updates", connectionId);
+            }
+        }
+
+        public async Task UnregisterFromEmergencyUpdates(string connectionId)
+        {
+            try
+            {
+                await _hubContext.Groups.RemoveFromGroupAsync(connectionId, "EmergencyUpdates");
+                _emergencyConnections.TryRemove(connectionId, out _);
+                _logger.LogInformation("Connection {ConnectionId} unregistered from emergency updates", connectionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error unregistering connection {ConnectionId} from emergency updates", connectionId);
+            }
+        }
+
+        public async Task SendDashboardUpdate(StaffDashboardDto dashboardData)
+        {
+            try
+            {
+                var updateData = new
+                {
+                    Type = "StaffDashboardUpdate",
+                    Data = dashboardData,
+                    Timestamp = DateTimeOffset.UtcNow
+                };
+
+                await _hubContext.Clients.Group("DashboardUpdates").SendAsync("StaffDashboardUpdate", updateData);
+                await _hubContext.Clients.Group("Staff").SendAsync("StaffDashboardUpdate", updateData);
+
+                _logger.LogInformation("Staff dashboard update sent to all subscribed clients");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending staff dashboard update");
+            }
+        }
+
+        public async Task SendEmergencyDashboardUpdate(EmergencyDashboardDto emergencyData)
+        {
+            try
+            {
+                var updateData = new
+                {
+                    Type = "EmergencyDashboardUpdate",
+                    Data = emergencyData,
+                    Timestamp = DateTimeOffset.UtcNow
+                };
+
+                await _hubContext.Clients.Group("EmergencyUpdates").SendAsync("EmergencyDashboardUpdate", updateData);
+                await _hubContext.Clients.Group("Emergency").SendAsync("EmergencyDashboardUpdate", updateData);
+                await _hubContext.Clients.Group("Staff").SendAsync("EmergencyDashboardUpdate", updateData);
+
+                _logger.LogInformation("Emergency dashboard update sent to all subscribed clients");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending emergency dashboard update");
+            }
+        }
+
+        #endregion
 
         public async Task SendEmergencyBloodRequestAlert(EmergencyBloodRequestDto emergencyRequest)
         {
@@ -44,7 +183,7 @@ namespace Services.Implementation
 
                 // Send to Emergency group (high priority staff)
                 await _hubContext.Clients.Group("Emergency").SendAsync("EmergencyBloodRequestAlert", alertData);
-                
+
                 // Send to Staff group (all staff members)
                 await _hubContext.Clients.Group("Staff").SendAsync("NewEmergencyRequest", alertData);
 
@@ -108,7 +247,7 @@ namespace Services.Implementation
 
                 await Task.WhenAll(tasks);
 
-                _logger.LogInformation("Emergency donor alerts sent to {DonorCount} nearby donors for request {RequestId}", 
+                _logger.LogInformation("Emergency donor alerts sent to {DonorCount} nearby donors for request {RequestId}",
                     donorUserIds.Count, emergencyRequest.Id);
             }
             catch (Exception ex)
@@ -148,7 +287,7 @@ namespace Services.Implementation
 
                 await _hubContext.Clients.Group("Staff").SendAsync("NewBloodRequest", requestData);
 
-                _logger.LogInformation("Staff notified of new {RequestType} request {RequestId}", 
+                _logger.LogInformation("Staff notified of new {RequestType} request {RequestId}",
                     bloodRequest.IsEmergency ? "emergency" : "regular", bloodRequest.Id);
             }
             catch (Exception ex)
@@ -428,23 +567,49 @@ namespace Services.Implementation
 
         public async Task<int> GetOnlineStaffCount()
         {
-            // This is a simplified implementation
-            // In a real application, you might want to track online users in a database or cache
-            return 0;
+            try
+            {
+                // In a real implementation, you might query the database or cache for online staff
+                // For now, we'll return the count of connections in the Staff group
+                // This is a simplified implementation
+                return _dashboardConnections.Count;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting online staff count");
+                return 0;
+            }
         }
 
         public async Task<int> GetOnlineDonorCount()
         {
-            // This is a simplified implementation
-            // In a real application, you might want to track online users in a database or cache
-            return 0;
+            try
+            {
+                // In a real implementation, you might query the database or cache for online donors
+                // This is a simplified implementation
+                return _emergencyConnections.Count;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting online donor count");
+                return 0;
+            }
         }
 
         public async Task<bool> IsUserOnline(Guid userId)
         {
-            // This is a simplified implementation
-            // In a real application, you might want to track online users in a database or cache
-            return false;
+            try
+            {
+                // In a real implementation, you might check if the user has any active connections
+                // This is a simplified implementation
+                var userConnection = _dashboardConnections.Values.FirstOrDefault(c => c.Contains(userId.ToString()));
+                return userConnection != null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if user {UserId} is online", userId);
+                return false;
+            }
         }
     }
 }

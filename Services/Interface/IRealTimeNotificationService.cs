@@ -39,5 +39,15 @@ namespace Services.Interface
         Task<int> GetOnlineStaffCount();
         Task<int> GetOnlineDonorCount();
         Task<bool> IsUserOnline(Guid userId);
+
+        // Dashboard real-time subscription methods
+        Task RegisterForDashboardUpdates();
+        Task RegisterForEmergencyUpdates();
+        Task RegisterConnectionForDashboardUpdates(string connectionId);
+        Task RegisterConnectionForEmergencyUpdates(string connectionId);
+        Task UnregisterFromDashboardUpdates(string connectionId);
+        Task UnregisterFromEmergencyUpdates(string connectionId);
+        Task SendDashboardUpdate(StaffDashboardDto dashboardData);
+        Task SendEmergencyDashboardUpdate(EmergencyDashboardDto emergencyData);
     }
 }

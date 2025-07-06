@@ -29,5 +29,6 @@ namespace Services.Interface
         
         Task<ApiResponse<InventoryCheckResultDto>> CheckInventoryForRequestAsync(Guid requestId);
         Task<ApiResponse<IEnumerable<BloodRequestDto>>> GetEmergencyBloodRequestsAsync(bool onlyActive = true);
+        Task<ApiResponse<BloodRequestDto>> UpdateBloodRequestStatusWithNotesAsync(Guid id, string status, string notes = null);
     }
 }

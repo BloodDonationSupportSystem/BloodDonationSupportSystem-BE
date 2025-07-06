@@ -242,5 +242,16 @@ namespace BloodDonationSupportSystem.Controllers
             var response = await _donationEventService.CompleteDonationAsync(completionDto);
             return HandleResponse(response);
         }
+
+        // GET: api/DonationEvents/auto-fulfill-status
+        [HttpGet("auto-fulfill-status")]
+        [Authorize(Roles = "Admin,Staff")]
+        [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 500)]
+        public async Task<IActionResult> GetAutoFulfillStatus([FromQuery] Guid? bloodGroupId = null, [FromQuery] Guid? componentTypeId = null)
+        {
+            var response = await _donationEventService.GetAutoFulfillStatusReportAsync(bloodGroupId, componentTypeId);
+            return HandleResponse(response);
+        }
     }
 }
