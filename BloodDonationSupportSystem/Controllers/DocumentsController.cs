@@ -26,7 +26,7 @@ namespace BloodDonationSupportSystem.Controllers
         [AllowAnonymous] // Cho phép ng??i dùng ch?a ??ng nh?p xem danh sách tài li?u
         [ProducesResponseType(typeof(PagedApiResponse<DocumentDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
-        public async Task<IActionResult> GetDocuments([FromQuery] PaginationParameters parameters)
+        public async Task<IActionResult> GetDocuments([FromQuery] DocumentParameters parameters)
         {
             var response = await _documentService.GetPagedDocumentsAsync(parameters);
             return HandleResponse(response);

@@ -191,7 +191,13 @@ namespace Services.Implementation
                 Name = location.Name,
                 Address = location.Address,
                 Latitude = location.Latitude,
-                Longitude = location.Longitude
+                Longitude = location.Longitude,
+                IsActive = location.IsActive,
+                Description = location.Description,
+                ContactPhone = location.ContactPhone,
+                ContactEmail = location.ContactEmail,
+                CreatedTime = location.CreatedTime,
+                LastUpdatedTime = location.LastUpdatedTime,
             };
         }
     }

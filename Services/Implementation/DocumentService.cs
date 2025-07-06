@@ -182,12 +182,14 @@ namespace Services.Implementation
             }
         }
 
-        public async Task<PagedApiResponse<DocumentDto>> GetPagedDocumentsAsync(PaginationParameters parameters)
+        public async Task<PagedApiResponse<DocumentDto>> GetPagedDocumentsAsync(DocumentParameters parameters)
         {
             try
             {
                 var (documents, totalCount) = await _unitOfWork.Documents.GetPagedAsync(
                     parameters,
+                    // Corrected filter parameter name from 'predicate' to 'filter'
+                    filter: d => string.IsNullOrEmpty(parameters.DocumentType) || d.DocumentType == parameters.DocumentType,
                     orderBy: query => parameters.SortBy?.ToLower() switch
                     {
                         "title" => parameters.SortAscending ? query.OrderBy(d => d.Title) : query.OrderByDescending(d => d.Title),

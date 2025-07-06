@@ -1,3 +1,4 @@
+using Shared.Models;
 using System;
 using System.ComponentModel.DataAnnotations;
 
@@ -12,6 +13,11 @@ namespace BusinessObjects.Dtos
         public DateTimeOffset CreatedDate { get; set; }
         public Guid CreatedBy { get; set; }
         public string CreatedByName { get; set; }
+    }
+
+    public class DocumentParameters : PaginationParameters
+    {
+        public string? DocumentType { get; set; }
     }
 
     public class CreateDocumentDto

@@ -15,6 +15,6 @@ namespace Services.Interface
         Task<ApiResponse<DocumentDto>> CreateDocumentAsync(CreateDocumentDto documentDto);
         Task<ApiResponse<DocumentDto>> UpdateDocumentAsync(Guid id, UpdateDocumentDto documentDto);
         Task<ApiResponse> DeleteDocumentAsync(Guid id);
-        Task<PagedApiResponse<DocumentDto>> GetPagedDocumentsAsync(PaginationParameters parameters);
+        Task<PagedApiResponse<DocumentDto>> GetPagedDocumentsAsync(DocumentParameters parameters);
     }
 }
