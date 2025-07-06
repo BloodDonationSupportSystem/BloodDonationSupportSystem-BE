@@ -1,4 +1,5 @@
 using AutoMapper;
+using BusinessObjects.AutoMapperProfiles;
 using BusinessObjects.Data;
 using BusinessObjects.Models;
 using BusinessObjects.Dtos;
@@ -89,7 +90,13 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         }));
 
 // Configure AutoMapper
-builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+builder.Services.AddAutoMapper(config => 
+{
+    config.AddProfile<MappingProfile>();
+    config.AddProfile<DashboardMappingProfile>();
+    config.AddProfile<DonationEventProfile>();
+    // Add any other mapping profiles here
+});
 
 // Register repositories and services
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -168,8 +175,6 @@ builder.Services.AddScoped<IDonorReminderSettingsRepository, DonorReminderSettin
 builder.Services.AddScoped<IDonationAppointmentRequestRepository, DonationAppointmentRequestRepository>();
 builder.Services.AddScoped<IDonationAppointmentRequestService, DonationAppointmentRequestService>();
 
-// Analytics, Dashboard and Report Services
-builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // Location Capacity Service

@@ -23,7 +23,6 @@ namespace Repositories.Base
         INotificationRepository Notifications { get; }
         IRefreshTokenRepository RefreshTokens { get; }
         IDonorReminderSettingsRepository DonorReminderSettings { get; }
-        IAnalyticsRepository Analytics { get; }
         IDonationAppointmentRequestRepository DonationAppointmentRequests { get; }
         
         Task<int> CompleteAsync();

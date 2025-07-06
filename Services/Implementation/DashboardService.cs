@@ -42,10 +42,8 @@ namespace Services.Implementation
                     return new ApiResponse<MemberDashboardDto>(HttpStatusCode.NotFound, "User not found");
                 }
 
-                // Get donor profile
-                var donorProfiles = await _unitOfWork.DonorProfiles.FindAsync(dp => dp.UserId == userId);
-                var donorProfile = donorProfiles.FirstOrDefault();
-                
+                var donorProfile = await _unitOfWork.DonorProfiles.GetByUserIdAsync(userId);
+
                 var dashboard = new MemberDashboardDto
                 {
                     User = _mapper.Map<UserDto>(user),
@@ -104,10 +102,6 @@ namespace Services.Implementation
                     n.CreatedTime >= DateTimeOffset.UtcNow.AddDays(-30));
                 dashboard.RecentNotifications = _mapper.Map<List<NotificationDto>>(recentNotifications.Take(10));
 
-                // Get educational resources
-                var educationalPosts = await _unitOfWork.BlogPosts.GetAllAsync();
-                dashboard.EducationalResources = _mapper.Map<List<BlogPostDto>>(educationalPosts.Take(5));
-
                 return new ApiResponse<MemberDashboardDto>(dashboard);
             }
             catch (Exception ex)
@@ -125,53 +119,81 @@ namespace Services.Implementation
 
                 var dashboard = new StaffDashboardDto();
 
-                // Get active blood requests
-                var activeRequests = await _unitOfWork.BloodRequests.FindAsync(br => br.IsActive && br.Status == "Pending");
+                // Get active blood requests using the parameterized method
+                var activeRequestsParams = new BloodRequestParameters
+                {
+                    Status = "Pending",
+                    PageNumber = 1,
+                    PageSize = 100 // Get a large number for dashboard
+                };
+                var activeRequestsResult = await _unitOfWork.BloodRequests.GetPagedBloodRequestsAsync(activeRequestsParams);
+                var activeRequests = activeRequestsResult.items.Where(br => br.IsActive);
                 dashboard.ActiveBloodRequests = _mapper.Map<List<BloodRequestDto>>(activeRequests);
 
                 // Get emergency requests
-                var emergencyRequests = await _unitOfWork.BloodRequests.FindAsync(br => br.IsEmergency && br.IsActive && br.Status == "Pending");
+                var emergencyRequests = activeRequests.Where(br => br.IsEmergency);
                 dashboard.EmergencyRequests = _mapper.Map<List<EmergencyBloodRequestDto>>(emergencyRequests);
 
                 // Get request status counts
                 dashboard.RequestStatusCounts = await GetRequestStatusCountsAsync();
 
-                // Get inventory summary
-                dashboard.InventorySummary = await GetInventorySummaryAsync();
+                // Get inventory summary with proper mapping and calculation
+                dashboard.InventorySummary = await GetInventorySummaryWithNamesAsync();
 
-                // Get critical inventory levels
-                dashboard.CriticalInventoryLevels = await GetCriticalInventoryAsync();
+                // Get critical inventory levels with proper data
+                //dashboard.CriticalInventoryLevels = await GetCriticalInventoryAsync();
 
-                // Get recent and upcoming appointments
-                var recentAppointments = await _unitOfWork.DonationAppointmentRequests.FindAsync(dar => 
-                    dar.CreatedTime >= DateTimeOffset.UtcNow.AddDays(-7));
-                dashboard.RecentAppointments = _mapper.Map<List<DonationAppointmentRequestDto>>(recentAppointments.Take(20));
+                // Get recent and upcoming appointments using the parameterized method
+                var recentAppointmentParams = new AppointmentRequestParameters
+                {
+                    StartDate = DateTimeOffset.UtcNow.AddDays(-7),
+                    EndDate = DateTimeOffset.UtcNow,
+                    PageNumber = 1,
+                    PageSize = 20,
+                    SortBy = "createdtime",
+                    SortAscending = false
+                };
+                var recentAppointmentsResult = await _unitOfWork.DonationAppointmentRequests.GetPagedAppointmentRequestsAsync(recentAppointmentParams);
+                dashboard.RecentAppointments = _mapper.Map<List<DonationAppointmentRequestDto>>(recentAppointmentsResult.items);
 
-                var upcomingAppointments = await _unitOfWork.DonationAppointmentRequests.FindAsync(dar => 
-                    dar.PreferredDate >= DateTimeOffset.UtcNow &&
-                    dar.Status == "Approved");
-                dashboard.UpcomingAppointments = _mapper.Map<List<DonationAppointmentRequestDto>>(upcomingAppointments.Take(20));
+                var upcomingAppointments = await _unitOfWork.DonationAppointmentRequests.GetRequestsByStatusAsync("Approved");
+                var futureAppointments = upcomingAppointments.Where(dar => dar.PreferredDate >= DateTimeOffset.UtcNow);
+                dashboard.UpcomingAppointments = _mapper.Map<List<DonationAppointmentRequestDto>>(futureAppointments.Take(20));
 
-                // Get recent donations
-                var recentDonations = await _unitOfWork.DonationEvents.FindAsync(de => 
-                    de.DonationDate >= DateTimeOffset.UtcNow.AddDays(-30));
-                dashboard.RecentDonations = _mapper.Map<List<DonationEventDto>>(recentDonations.Take(20));
+                // Get recent donations using the parameterized method
+                var recentDonationParams = new DonationEventParameters
+                {
+                    StartDate = DateTimeOffset.UtcNow.AddDays(-30),
+                    EndDate = DateTimeOffset.UtcNow,
+                    PageNumber = 1,
+                    PageSize = 20,
+                    SortBy = "donationdate",
+                    SortAscending = false
+                };
+                var recentDonationsResult = await _unitOfWork.DonationEvents.GetPagedDonationEventsAsync(recentDonationParams);
+                dashboard.RecentDonations = _mapper.Map<List<DonationEventDto>>(recentDonationsResult.items);
 
-                // Get expiring inventory
-                var expiringInventory = await _unitOfWork.BloodInventories.FindAsync(bi => 
-                    bi.ExpirationDate <= DateTimeOffset.UtcNow.AddDays(30) && 
-                    bi.QuantityUnits > 0);
+                // Get expiring inventory using the parameterized method
+                var expiringInventoryParams = new BloodInventoryParameters
+                {
+                    ExpirationStartDate = DateTimeOffset.UtcNow,
+                    ExpirationEndDate = DateTimeOffset.UtcNow.AddDays(30),
+                    PageNumber = 1,
+                    PageSize = 100
+                };
+                var expiringInventoryResult = await _unitOfWork.BloodInventories.GetPagedBloodInventoriesAsync(expiringInventoryParams);
+                var expiringInventory = expiringInventoryResult.items.Where(bi => bi.QuantityUnits > 0);
                 dashboard.ExpiringInventory = _mapper.Map<List<BloodInventoryDto>>(expiringInventory);
 
                 // Get today's activity
                 dashboard.TodayActivity = await GetTodayActivityAsync();
 
-                // Get available emergency donors
-                var emergencyDonors = await _unitOfWork.DonorProfiles.FindAsync(dp => dp.IsAvailableForEmergency);
+                // Get available emergency donors using the repository method
+                var emergencyDonors = await _unitOfWork.DonorProfiles.GetAvailableDonorsAsync(forEmergency: true);
                 dashboard.AvailableEmergencyDonors = _mapper.Map<List<DonorProfileDto>>(emergencyDonors);
 
-                // Get trends
-                dashboard.Trends = await GetTrendsDataAsync();
+                // Get trends with proper implementation
+                dashboard.Trends = await GetTrendsDataWithCalculationsAsync();
 
                 return new ApiResponse<StaffDashboardDto>(dashboard);
             }
@@ -180,6 +202,90 @@ namespace Services.Implementation
                 _logger.LogError(ex, "Error getting staff dashboard");
                 return new ApiResponse<StaffDashboardDto>(HttpStatusCode.InternalServerError, "Error retrieving staff dashboard");
             }
+        }
+
+        private async Task<List<BloodInventorySummaryDto>> GetInventorySummaryWithNamesAsync()
+        {
+            var inventoryItems = await _unitOfWork.BloodInventories.GetAllAsync();
+            var bloodGroups = await _unitOfWork.BloodGroups.GetAllAsync();
+            var componentTypes = await _unitOfWork.ComponentTypes.GetAllAsync();
+
+            var summary = inventoryItems
+                .GroupBy(i => new { i.BloodGroupId, i.ComponentTypeId })
+                .Select(g => {
+                    var bloodGroup = bloodGroups.FirstOrDefault(bg => bg.Id == g.Key.BloodGroupId);
+                    var componentType = componentTypes.FirstOrDefault(ct => ct.Id == g.Key.ComponentTypeId);
+                    var availableQuantity = g.Where(i => i.ExpirationDate > DateTimeOffset.UtcNow).Sum(i => i.QuantityUnits);
+                    var optimalQuantity = 50; // Default optimal
+                    var availabilityPercentage = optimalQuantity > 0 ? (double)availableQuantity / optimalQuantity * 100 : 0;
+
+                    return new BloodInventorySummaryDto
+                    {
+                        BloodGroupId = g.Key.BloodGroupId,
+                        BloodGroupName = bloodGroup?.GroupName ?? "Unknown",
+                        ComponentTypeId = g.Key.ComponentTypeId,
+                        ComponentTypeName = componentType?.Name ?? "Unknown",
+                        AvailableQuantity = availableQuantity,
+                        MinimumRecommended = 10, // Default threshold
+                        OptimalQuantity = optimalQuantity,
+                        AvailabilityPercentage = Math.Round(availabilityPercentage, 2),
+                        Status = availableQuantity <= 10 ? "Critical" : "Normal"
+                    };
+                })
+                .ToList();
+
+            return summary;
+        }
+
+        private async Task<TrendsDto> GetTrendsDataWithCalculationsAsync()
+        {
+            var trends = new TrendsDto();
+            var now = DateTimeOffset.UtcNow;
+
+            // Calculate donation trends for the last 7 days
+            for (int i = 6; i >= 0; i--)
+            {
+                var date = now.AddDays(-i).Date;
+                var nextDate = date.AddDays(1);
+
+                var donationsOnDate = await _unitOfWork.DonationEvents.FindAsync(de =>
+                    de.DonationDate >= date && de.DonationDate < nextDate);
+
+                var requestsOnDate = await _unitOfWork.BloodRequests.FindAsync(br =>
+                    br.RequestDate >= date && br.RequestDate < nextDate);
+
+                var emergencyRequestsOnDate = requestsOnDate.Where(br => br.IsEmergency);
+
+                trends.DonationTrend[date.ToString("yyyy-MM-dd")] = donationsOnDate.Count();
+                trends.RequestTrend[date.ToString("yyyy-MM-dd")] = requestsOnDate.Count();
+                trends.EmergencyTrend[date.ToString("yyyy-MM-dd")] = emergencyRequestsOnDate.Count();
+            }
+
+            // Calculate inventory trends for the last 7 days
+            var bloodGroups = await _unitOfWork.BloodGroups.GetAllAsync();
+            var componentTypes = await _unitOfWork.ComponentTypes.GetAllAsync();
+
+            foreach (var bloodGroup in bloodGroups)
+            {
+                var bloodGroupTrend = new Dictionary<string, int>();
+
+                for (int i = 6; i >= 0; i--)
+                {
+                    var date = now.AddDays(-i).Date;
+                    var nextDate = date.AddDays(1);
+
+                    var inventoryOnDate = await _unitOfWork.BloodInventories.FindAsync(bi =>
+                        bi.BloodGroupId == bloodGroup.Id &&
+                        bi.ExpirationDate > date);
+
+                    var totalQuantity = inventoryOnDate.Sum(bi => bi.QuantityUnits);
+                    bloodGroupTrend[date.ToString("yyyy-MM-dd")] = totalQuantity;
+                }
+
+                trends.InventoryTrend[bloodGroup.GroupName] = bloodGroupTrend;
+            }
+
+            return trends;
         }
 
         public async Task<ApiResponse<AdminDashboardDto>> GetAdminDashboardAsync()

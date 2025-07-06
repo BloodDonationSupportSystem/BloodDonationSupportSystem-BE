@@ -83,11 +83,6 @@ namespace BusinessObjects.Dtos
         /// Donation centers near the member's location
         /// </summary>
         public List<LocationDto> NearbyDonationCenters { get; set; } = new List<LocationDto>();
-
-        /// <summary>
-        /// Blood donation tips and educational resources
-        /// </summary>
-        public List<BlogPostDto> EducationalResources { get; set; } = new List<BlogPostDto>();
     }
 
     /// <summary>
@@ -118,7 +113,7 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// List of blood groups with critical inventory levels
         /// </summary>
-        public List<CriticalInventoryDto> CriticalInventoryLevels { get; set; } = new List<CriticalInventoryDto>();
+        //public List<CriticalInventoryDto> CriticalInventoryLevels { get; set; } = new List<CriticalInventoryDto>();
 
         /// <summary>
         /// Recent donation appointments

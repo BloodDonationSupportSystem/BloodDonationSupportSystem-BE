@@ -463,12 +463,12 @@ namespace Services.Implementation
                     r.ContactInfo == publicRequestDto.ContactInfo &&
                     r.RequestDate >= DateTimeOffset.UtcNow.AddMinutes(-60));
                     
-                if (recentRequests.Any())
-                {
-                    _logger?.LogWarning("Duplicate public request detected from contact: {ContactInfo}", publicRequestDto.ContactInfo);
-                    return new ApiResponse<BloodRequestDto>(HttpStatusCode.BadRequest, 
-                        "A similar emergency request from this contact information was submitted recently. Please wait before submitting again.");
-                }
+                //if (recentRequests.Any())
+                //{
+                //    _logger?.LogWarning("Duplicate public request detected from contact: {ContactInfo}", publicRequestDto.ContactInfo);
+                //    return new ApiResponse<BloodRequestDto>(HttpStatusCode.BadRequest, 
+                //        "A similar emergency request from this contact information was submitted recently. Please wait before submitting again.");
+                //}
                 
                 // Create emergency blood request from public request
                 var bloodRequest = new BloodRequest

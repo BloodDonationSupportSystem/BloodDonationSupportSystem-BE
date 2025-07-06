@@ -25,7 +25,6 @@ namespace Repositories.Base
         private INotificationRepository _notificationRepository;
         private IRefreshTokenRepository _refreshTokenRepository;
         private IDonorReminderSettingsRepository _donorReminderSettingsRepository;
-        private IAnalyticsRepository _analyticsRepository;
         private IDonationAppointmentRequestRepository _donationAppointmentRequestRepository;
 
         public UnitOfWork(ApplicationDbContext context)
@@ -49,7 +48,6 @@ namespace Repositories.Base
         public INotificationRepository Notifications => _notificationRepository ??= new NotificationRepository(_context);
         public IRefreshTokenRepository RefreshTokens => _refreshTokenRepository ??= new RefreshTokenRepository(_context);
         public IDonorReminderSettingsRepository DonorReminderSettings => _donorReminderSettingsRepository ??= new DonorReminderSettingsRepository(_context);
-        public IAnalyticsRepository Analytics => _analyticsRepository ??= new AnalyticsRepository(_context);
         public IDonationAppointmentRequestRepository DonationAppointmentRequests => _donationAppointmentRequestRepository ??= new DonationAppointmentRequestRepository(_context);
 
         public async Task<int> CompleteAsync()
