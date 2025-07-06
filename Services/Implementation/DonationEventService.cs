@@ -1058,7 +1058,7 @@ namespace Services.Implementation
                         HttpStatusCode.NotFound,
                         "Donation event not found");
                 }
-                
+
                 // Kiểm tra trạng thái hiện tại
                 if (donationEvent.Status != "InProgress")
                 {
@@ -1066,7 +1066,7 @@ namespace Services.Implementation
                         HttpStatusCode.BadRequest,
                         "Donation event must be in 'InProgress' status to complete donation");
                 }
-                
+
                 // Cập nhật thông tin hiến máu
                 donationEvent.Status = "Completed";
                 donationEvent.DonationDate = completionDto.DonationDate;
@@ -1079,10 +1079,11 @@ namespace Services.Implementation
                 donationEvent.CompletedTime = DateTimeOffset.UtcNow;
                 donationEvent.LastUpdatedTime = DateTimeOffset.UtcNow;
                 donationEvent.IsUsable = true;
-                
+
                 _unitOfWork.DonationEvents.Update(donationEvent);
-                
-                // Cập nhật thông tin người hiến máu
+
+                // Lấy tên donor
+                var donorName = "Unknown Donor";
                 if (donationEvent.DonorId.HasValue)
                 {
                     var donor = await _unitOfWork.DonorProfiles.GetByIdAsync(donationEvent.DonorId.Value);
@@ -1090,15 +1091,18 @@ namespace Services.Implementation
                     {
                         donor.LastDonationDate = completionDto.DonationDate;
                         donor.TotalDonations = donor.TotalDonations + 1;
-
-                        // Tính ngày có thể hiến máu tiếp theo (mặc định 3 tháng)
                         donor.NextAvailableDonationDate = await CalculateNextAvailableDonationDateAsync(
                              completionDto.DonationDate, donationEvent.ComponentTypeId);
-
                         _unitOfWork.DonorProfiles.Update(donor);
+
+                        donorName = $"{donor.User?.FirstName} {donor.User?.LastName}".Trim();
+                        if (string.IsNullOrEmpty(donorName))
+                        {
+                            donorName = $"Donor ID: {donor.Id}";
+                        }
                     }
                 }
-                
+
                 // Cập nhật lịch hẹn nếu có
                 if (donationEvent.RequestType == "Appointment" && donationEvent.RequestId.HasValue)
                 {
@@ -1110,9 +1114,9 @@ namespace Services.Implementation
                         _unitOfWork.DonationAppointmentRequests.Update(appointment);
                     }
                 }
-                
+
                 await _unitOfWork.CompleteAsync();
-                
+
                 // Tạo bản ghi kho máu mới
                 await _bloodInventoryService.CreateBloodInventoryAsync(new CreateBloodInventoryDto
                 {
@@ -1124,50 +1128,37 @@ namespace Services.Implementation
                     InventorySource = "Donation",
                     ExpirationDate = await CalculateExpirationDateAsync(completionDto.DonationDate, donationEvent.ComponentTypeId)
                 });
-                
-                _logger.LogInformation("🩸 New blood inventory created: {Units} units of {BloodGroup} {ComponentType}", 
-                    completionDto.QuantityUnits, 
-                    donationEvent.BloodGroup?.GroupName ?? "Unknown", 
+
+                _logger.LogInformation("🩸 New blood inventory created: {Units} units of {BloodGroup} {ComponentType}",
+                    completionDto.QuantityUnits,
+                    donationEvent.BloodGroup?.GroupName ?? "Unknown",
                     donationEvent.ComponentType?.Name ?? "Unknown");
-                
-                // 🔥 ENHANCED: Update related blood request status and try auto-fulfill
+
+                // 🔥 SIMPLE: Check và record contribution cho blood request liên quan (nếu có)
                 if (donationEvent.RequestType == "Appointment" && donationEvent.RequestId.HasValue)
                 {
                     var appointment = await _unitOfWork.DonationAppointmentRequests.GetByIdAsync(donationEvent.RequestId.Value);
                     if (appointment?.RelatedBloodRequestId.HasValue == true)
                     {
-                        // Update status to show donation completed
-                        await _bloodRequestService.UpdateBloodRequestStatusWithNotesAsync(
-                            appointment.RelatedBloodRequestId.Value, 
-                            "Processing", 
-                            $"✅ Donation hoàn thành thành công! Thu được {completionDto.QuantityUnits} đơn vị máu " +
-                            $"{donationEvent.BloodGroup?.GroupName} {donationEvent.ComponentType?.Name}. " +
-                            $"🤖 Đang kiểm tra tự động fulfill request...");
-                        
-                        // 🔥 Try to auto-fulfill the related blood request first (highest priority)
-                        _logger.LogInformation("🎯 Attempting to auto-fulfill related blood request {RequestId} first", 
-                            appointment.RelatedBloodRequestId.Value);
-                        
-                        await TryAutoFulfillBloodRequestAsync(appointment.RelatedBloodRequestId.Value);
+                        await RecordContributionToBloodRequestAsync(
+                            appointment.RelatedBloodRequestId.Value,
+                            (int)completionDto.QuantityUnits,
+                            donorName,
+                            donationEvent.BloodGroup?.GroupName ?? "Unknown",
+                            donationEvent.ComponentType?.Name ?? "Unknown"
+                        );
                     }
                 }
-                
-                // 🔥 ENHANCED: Auto-fulfill other pending requests with matching blood type
-                _logger.LogInformation("🔍 Looking for other pending requests that can be auto-fulfilled...");
-                
-                // Add a small delay to ensure inventory is fully committed
-                await Task.Delay(500);
-                
-                // Use intelligent auto-fulfill instead of simple auto-fulfill
-                await IntelligentAutoFulfillAsync(donationEvent.BloodGroupId, donationEvent.ComponentTypeId, (int)completionDto.QuantityUnits);
-                
+
+                // Simple auto-fulfill other requests
+                await SimpleAutoFulfillAsync(donationEvent.BloodGroupId, donationEvent.ComponentTypeId);
+
                 // Gửi thông báo
                 if (donationEvent.DonorId.HasValue)
                 {
                     var donor = donationEvent.DonorProfile;
                     if (donor != null && donor.UserId != Guid.Empty)
                     {
-                        // Thông báo hoàn thành hiến máu
                         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
                         {
                             UserId = donor.UserId,
@@ -1175,8 +1166,7 @@ namespace Services.Implementation
                             Type = "DonationCompleted",
                             Message = "Thank you for your donation! Your blood will help save lives."
                         });
-                        
-                        // Thông báo chăm sóc sau hiến máu
+
                         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
                         {
                             UserId = donor.UserId,
@@ -1184,8 +1174,7 @@ namespace Services.Implementation
                             Type = "PostDonationCare",
                             Message = "Remember to rest and stay hydrated for the next 24 hours. Avoid heavy lifting and strenuous activities."
                         });
-                        
-                        // Thông báo lịch hiến máu tiếp theo
+
                         if (donor.NextAvailableDonationDate.HasValue)
                         {
                             await _notificationService.CreateNotificationAsync(new CreateNotificationDto
@@ -1198,27 +1187,171 @@ namespace Services.Implementation
                         }
                     }
                 }
-                
+
                 // Send real-time notification for completed donation
                 await _realTimeNotificationService.NotifyDonationEventStatusChange(
                     donationEvent.Id, "Completed", "Blood donation completed successfully");
                 await _realTimeNotificationService.UpdateBloodRequestDashboard();
                 await _realTimeNotificationService.UpdateInventoryDashboard();
-                
+
                 var updatedDonationEvent = await _unitOfWork.DonationEvents.GetByIdWithDetailsAsync(donationEvent.Id);
                 var donationEventResultDto = _mapper.Map<DonationEventDto>(updatedDonationEvent);
-                
+
                 return new ApiResponse<DonationEventDto>(
                     donationEventResultDto,
                     "Donation completed successfully");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while completing donation: {DonationEventId}", 
+                _logger.LogError(ex, "Error occurred while completing donation: {DonationEventId}",
                     completionDto.DonationEventId);
                 return new ApiResponse<DonationEventDto>(
                     HttpStatusCode.InternalServerError,
                     "Error occurred while completing donation");
+            }
+        }
+
+        // 🔥 NEW Helper: Record contribution đơn giản
+        private async Task RecordContributionToBloodRequestAsync(
+            Guid requestId,
+            int unitsContributed,
+            string donorName,
+            string bloodGroupName,
+            string componentTypeName)
+        {
+            try
+            {
+                var bloodRequest = await _unitOfWork.BloodRequests.GetByIdAsync(requestId);
+                if (bloodRequest == null || bloodRequest.Status == "Fulfilled") return;
+
+                // Parse current fulfilled từ medical notes
+                int currentFulfilled = ExtractFulfilledUnitsFromNotes(bloodRequest.MedicalNotes);
+                int newTotal = currentFulfilled + unitsContributed;
+                int remaining = bloodRequest.QuantityUnits - newTotal;
+
+                var vietnamTime = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"));
+
+                // Update status
+                string newStatus = remaining <= 0 ? "Fulfilled" : "Processing";
+                bloodRequest.Status = newStatus;
+                bloodRequest.LastUpdatedTime = DateTimeOffset.UtcNow;
+
+                if (newStatus == "Fulfilled")
+                {
+                    bloodRequest.FulfilledDate = DateTimeOffset.UtcNow;
+                }
+
+                // Add progress note
+                string progressNote = remaining <= 0
+                    ? $"<div style='margin: 10px 0; padding: 10px; background: #e8f5e8; border-left: 4px solid #28a745; border-radius: 4px;'>" +
+                      $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                      $"✅ <strong>HOÀN THÀNH</strong> yêu cầu!<br/>" +
+                      $"Donor cuối: <strong>{donorName}</strong> hiến {unitsContributed} đơn vị {bloodGroupName} {componentTypeName}<br/>" +
+                      $"Tổng thu thập: <strong>{newTotal}/{bloodRequest.QuantityUnits} đơn vị</strong>" +
+                      $"</div>"
+                    : $"<div style='margin: 10px 0; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;'>" +
+                      $"<strong>[{vietnamTime:dd/MM/yyyy HH:mm}]</strong> " +
+                      $"📊 <strong>TIẾN ĐỘ</strong> hiến máu<br/>" +
+                      $"Donor: <strong>{donorName}</strong> hiến {unitsContributed} đơn vị {bloodGroupName} {componentTypeName}<br/>" +
+                      $"Đã thu thập: <strong>{newTotal}/{bloodRequest.QuantityUnits} đơn vị</strong> - " +
+                      $"<span style='color: #dc3545; font-weight: bold;'>Còn thiếu {remaining} đơn vị</span>" +
+                      $"</div>";
+
+                bloodRequest.MedicalNotes = (bloodRequest.MedicalNotes ?? "") + progressNote;
+
+                _unitOfWork.BloodRequests.Update(bloodRequest);
+                await _unitOfWork.CompleteAsync();
+
+                _logger.LogInformation("✅ Recorded contribution: {DonorName} contributed {Units} units. Status: {Status} ({Fulfilled}/{Total})",
+                    donorName, unitsContributed, newStatus, newTotal, bloodRequest.QuantityUnits);
+
+                // Send notification
+                string message = newStatus == "Fulfilled"
+                    ? $"🎉 Request fulfilled! Total: {newTotal} units from multiple donors"
+                    : $"📈 Progress: {newTotal}/{bloodRequest.QuantityUnits} units. Need {remaining} more units";
+
+                await _realTimeNotificationService.NotifyBloodRequestStatusChange(requestId, newStatus, message);
+
+                if (bloodRequest.IsEmergency)
+                {
+                    await _realTimeNotificationService.SendEmergencyBloodRequestUpdate(requestId, newStatus, message);
+                    await _realTimeNotificationService.UpdateEmergencyDashboard();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error recording contribution for request {RequestId}", requestId);
+            }
+        }
+
+        // 🔥 Helper: Parse fulfilled units từ medical notes
+        private int ExtractFulfilledUnitsFromNotes(string medicalNotes)
+        {
+            if (string.IsNullOrEmpty(medicalNotes)) return 0;
+
+            try
+            {
+                // Pattern để tìm "Đã thu thập: 2/5 đơn vị" hoặc "Tổng thu thập: 3/5 đơn vị"
+                var pattern = @"(?:Đã thu thập|Tổng thu thập):\s*<strong>(\d+)/\d+\s*đơn vị</strong>";
+                var matches = System.Text.RegularExpressions.Regex.Matches(medicalNotes, pattern);
+
+                if (matches.Count > 0)
+                {
+                    var lastMatch = matches[matches.Count - 1];
+                    if (int.TryParse(lastMatch.Groups[1].Value, out int units))
+                    {
+                        return units;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error parsing fulfilled units from medical notes");
+            }
+
+            return 0;
+        }
+
+        // 🔥 Simple auto-fulfill
+        private async Task SimpleAutoFulfillAsync(Guid bloodGroupId, Guid componentTypeId)
+        {
+            try
+            {
+                // Tìm requests đang chờ với cùng blood type
+                var pendingRequests = await _unitOfWork.BloodRequests.FindAsync(r =>
+                    r.BloodGroupId == bloodGroupId &&
+                    r.ComponentTypeId == componentTypeId &&
+                    r.Status == "Processing" &&
+                    r.IsActive &&
+                    r.DeletedTime == null);
+
+                foreach (var request in pendingRequests.OrderBy(r => r.IsEmergency ? 0 : 1).ThenBy(r => r.RequestDate))
+                {
+                    // Check inventory
+                    var inventoryCheck = await _bloodRequestService.CheckInventoryForRequestAsync(request.Id);
+                    if (inventoryCheck.Success && inventoryCheck.Data.HasSufficientInventory)
+                    {
+                        // Tìm staff để auto-fulfill
+                        var staff = await _unitOfWork.Users.FindAsync(u => u.Role.RoleName == "Admin" || u.Role.RoleName == "Staff");
+                        var staffUser = staff.FirstOrDefault();
+
+                        if (staffUser != null)
+                        {
+                            await _bloodRequestService.FulfillBloodRequestFromInventoryAsync(request.Id,
+                                new FulfillBloodRequestDto
+                                {
+                                    StaffId = staffUser.Id,
+                                    Notes = "🤖 Tự động fulfill từ kho sau khi có máu mới"
+                                });
+
+                            _logger.LogInformation("✅ Auto-fulfilled request {RequestId}", request.Id);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in simple auto-fulfill");
             }
         }
 

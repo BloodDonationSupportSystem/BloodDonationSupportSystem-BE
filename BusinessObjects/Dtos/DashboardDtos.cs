@@ -184,7 +184,7 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// Recent system activities
         /// </summary>
-        public List<ActivityLogDto> RecentActivities { get; set; } = new List<ActivityLogDto>();
+        //public List<ActivityLogDto> RecentActivities { get; set; } = new List<ActivityLogDto>();
 
         /// <summary>
         /// Active emergency requests
@@ -199,7 +199,7 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// Geographic distribution of donors and requests
         /// </summary>
-        public GeographicDistributionDto GeographicDistribution { get; set; } = new GeographicDistributionDto();
+        //public GeographicDistributionDto GeographicDistribution { get; set; } = new GeographicDistributionDto();
     }
 
     /// <summary>
@@ -456,12 +456,12 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// User activity by hour of day
         /// </summary>
-        public Dictionary<int, int> UserActivityByHour { get; set; } = new Dictionary<int, int>();
+        //public Dictionary<int, int> UserActivityByHour { get; set; } = new Dictionary<int, int>();
 
         /// <summary>
         /// User activity by day of week
         /// </summary>
-        public Dictionary<string, int> UserActivityByDayOfWeek { get; set; } = new Dictionary<string, int>();
+        //public Dictionary<string, int> UserActivityByDayOfWeek { get; set; } = new Dictionary<string, int>();
     }
 
     /// <summary>
@@ -477,7 +477,7 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// Critical inventory items
         /// </summary>
-        public List<CriticalInventoryDto> CriticalItems { get; set; } = new List<CriticalInventoryDto>();
+        //public List<CriticalInventoryDto> CriticalItems { get; set; } = new List<CriticalInventoryDto>();
 
         /// <summary>
         /// Number of expiring items in the next 7 days
@@ -548,22 +548,22 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// Donation counts by blood group
         /// </summary>
-        public Dictionary<string, int> DonationsByBloodGroup { get; set; } = new Dictionary<string, int>();
+        //public Dictionary<string, int> DonationsByBloodGroup { get; set; } = new Dictionary<string, int>();
 
         /// <summary>
         /// Donation counts by component type
         /// </summary>
-        public Dictionary<string, int> DonationsByComponentType { get; set; } = new Dictionary<string, int>();
+        //public Dictionary<string, int> DonationsByComponentType { get; set; } = new Dictionary<string, int>();
 
         /// <summary>
         /// Donation counts by location
         /// </summary>
-        public Dictionary<string, int> DonationsByLocation { get; set; } = new Dictionary<string, int>();
+        //public Dictionary<string, int> DonationsByLocation { get; set; } = new Dictionary<string, int>();
 
         /// <summary>
         /// Donation counts by day
         /// </summary>
-        public Dictionary<string, int> DonationsByDay { get; set; } = new Dictionary<string, int>();
+        //public Dictionary<string, int> DonationsByDay { get; set; } = new Dictionary<string, int>();
     }
 
     /// <summary>
@@ -589,52 +589,52 @@ namespace BusinessObjects.Dtos
         /// <summary>
         /// Total number of requests in the period
         /// </summary>
-        public int TotalRequests { get; set; }
+        //public int TotalRequests { get; set; }
 
-        /// <summary>
-        /// Number of emergency requests
-        /// </summary>
-        public int EmergencyRequests { get; set; }
+        ///// <summary>
+        ///// Number of emergency requests
+        ///// </summary>
+        //public int EmergencyRequests { get; set; }
 
-        /// <summary>
-        /// Number of fulfilled requests
-        /// </summary>
-        public int FulfilledRequests { get; set; }
+        ///// <summary>
+        ///// Number of fulfilled requests
+        ///// </summary>
+        //public int FulfilledRequests { get; set; }
 
-        /// <summary>
-        /// Number of pending requests
-        /// </summary>
-        public int PendingRequests { get; set; }
+        ///// <summary>
+        ///// Number of pending requests
+        ///// </summary>
+        //public int PendingRequests { get; set; }
 
-        /// <summary>
-        /// Number of canceled requests
-        /// </summary>
-        public int CanceledRequests { get; set; }
+        ///// <summary>
+        ///// Number of canceled requests
+        ///// </summary>
+        //public int CanceledRequests { get; set; }
 
-        /// <summary>
-        /// Average response time in hours
-        /// </summary>
-        public double AverageResponseTime { get; set; }
+        ///// <summary>
+        ///// Average response time in hours
+        ///// </summary>
+        //public double AverageResponseTime { get; set; }
 
-        /// <summary>
-        /// Request fulfillment rate (percentage)
-        /// </summary>
-        public double FulfillmentRate { get; set; }
+        ///// <summary>
+        ///// Request fulfillment rate (percentage)
+        ///// </summary>
+        //public double FulfillmentRate { get; set; }
 
-        /// <summary>
-        /// Request counts by blood group
-        /// </summary>
-        public Dictionary<string, int> RequestsByBloodGroup { get; set; } = new Dictionary<string, int>();
+        ///// <summary>
+        ///// Request counts by blood group
+        ///// </summary>
+        //public Dictionary<string, int> RequestsByBloodGroup { get; set; } = new Dictionary<string, int>();
 
-        /// <summary>
-        /// Request counts by component type
-        /// </summary>
-        public Dictionary<string, int> RequestsByComponentType { get; set; } = new Dictionary<string, int>();
+        ///// <summary>
+        ///// Request counts by component type
+        ///// </summary>
+        //public Dictionary<string, int> RequestsByComponentType { get; set; } = new Dictionary<string, int>();
 
-        /// <summary>
-        /// Request counts by day
-        /// </summary>
-        public Dictionary<string, int> RequestsByDay { get; set; } = new Dictionary<string, int>();
+        ///// <summary>
+        ///// Request counts by day
+        ///// </summary>
+        //public Dictionary<string, int> RequestsByDay { get; set; } = new Dictionary<string, int>();
     }
 
     /// <summary>

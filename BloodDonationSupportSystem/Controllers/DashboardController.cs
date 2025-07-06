@@ -272,7 +272,7 @@ namespace BloodDonationSupportSystem.Controllers
                     TotalDonors = donorStats.Data?.TotalDonors ?? 0,
                     ActiveDonors = donorStats.Data?.ActiveDonors ?? 0,
                     AvailableBloodUnits = inventoryStats.Data?.CurrentInventory?.Sum(i => i.AvailableQuantity) ?? 0,
-                    CriticalBloodTypes = inventoryStats.Data?.CriticalItems?.Count ?? 0,
+                    //CriticalBloodTypes = inventoryStats.Data?.CriticalItems?.Count ?? 0,
                     LastUpdated = DateTimeOffset.UtcNow
                 };
 

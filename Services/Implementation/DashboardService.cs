@@ -1,15 +1,16 @@
 using AutoMapper;
 using BusinessObjects.Dtos;
+using BusinessObjects.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Repositories.Base;
 using Services.Interface;
 using Shared.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Linq;
-using Microsoft.EntityFrameworkCore;
 
 namespace Services.Implementation
 {
@@ -297,28 +298,28 @@ namespace Services.Implementation
                 var dashboard = new AdminDashboardDto
                 {
                     SystemStats = await GetSystemStatisticsAsync(),
-                    UserStats = await GetUserStatisticsAsync(),
+                    UserStats = await GetUserStatisticsWithRoleNamesAsync(),
                     InventoryStats = (await GetInventoryStatisticsAsync()).Data,
-                    DonationStats = (await GetDonationStatisticsAsync(new StatisticsTimeframeDto 
-                    { 
-                        StartDate = DateTimeOffset.UtcNow.AddDays(-30), 
-                        EndDate = DateTimeOffset.UtcNow 
+                    DonationStats = (await GetDonationStatisticsAsync(new StatisticsTimeframeDto
+                    {
+                        StartDate = DateTimeOffset.UtcNow.AddDays(-30),
+                        EndDate = DateTimeOffset.UtcNow
                     })).Data,
-                    RequestStats = (await GetRequestStatisticsAsync(new StatisticsTimeframeDto 
-                    { 
-                        StartDate = DateTimeOffset.UtcNow.AddDays(-30), 
-                        EndDate = DateTimeOffset.UtcNow 
+                    RequestStats = (await GetRequestStatisticsAsync(new StatisticsTimeframeDto
+                    {
+                        StartDate = DateTimeOffset.UtcNow.AddDays(-30),
+                        EndDate = DateTimeOffset.UtcNow
                     })).Data,
                     PerformanceMetrics = await GetPerformanceMetricsAsync(),
-                    GeographicDistribution = await GetGeographicDistributionAsync()
+                    //GeographicDistribution = await GetGeographicDistributionAsync()
                 };
 
                 // Get recent activities (simplified - you might have a dedicated activity log table)
-                dashboard.RecentActivities = new List<ActivityLogDto>();
+                //dashboard.RecentActivities = new List<ActivityLogDto>();
 
-                // Get active emergency requests
+                // Get active emergency requests with proper blood group and component type names
                 var emergencyRequests = await _unitOfWork.BloodRequests.FindAsync(br => br.IsEmergency && br.IsActive && br.Status == "Pending");
-                dashboard.ActiveEmergencyRequests = _mapper.Map<List<EmergencyBloodRequestDto>>(emergencyRequests);
+                dashboard.ActiveEmergencyRequests = await MapEmergencyRequestsWithNamesAsync(emergencyRequests);
 
                 return new ApiResponse<AdminDashboardDto>(dashboard);
             }
@@ -327,6 +328,55 @@ namespace Services.Implementation
                 _logger.LogError(ex, "Error getting admin dashboard");
                 return new ApiResponse<AdminDashboardDto>(HttpStatusCode.InternalServerError, "Error retrieving admin dashboard");
             }
+        }
+
+        private async Task<UserStatisticsDto> GetUserStatisticsWithRoleNamesAsync()
+        {
+            var allUsers = await _unitOfWork.Users.GetAllAsync();
+            var allRoles = await _unitOfWork.Roles.GetAllAsync();
+            var last30Days = DateTimeOffset.UtcNow.AddDays(-30);
+
+            var userStats = new UserStatisticsDto
+            {
+                NewUsersLast30Days = allUsers.Count(u => u.CreatedTime >= last30Days),
+                ActiveUsersLast30Days = allUsers.Count(u => u.CreatedTime >= last30Days) // Simplified
+            };
+
+            // Get users by role using actual role names
+            var memberRole = allRoles.FirstOrDefault(r => r.RoleName == "Member");
+            var staffRole = allRoles.FirstOrDefault(r => r.RoleName == "Staff");
+            var adminRole = allRoles.FirstOrDefault(r => r.RoleName == "Admin");
+
+            userStats.UsersByRole = new Dictionary<string, int>
+            {
+                { "Member", memberRole != null ? allUsers.Count(u => u.RoleId == memberRole.Id) : 0 },
+                { "Staff", staffRole != null ? allUsers.Count(u => u.RoleId == staffRole.Id) : 0 },
+                { "Admin", adminRole != null ? allUsers.Count(u => u.RoleId == adminRole.Id) : 0 }
+            };
+
+            return userStats;
+        }
+
+        private async Task<List<EmergencyBloodRequestDto>> MapEmergencyRequestsWithNamesAsync(IEnumerable<BloodRequest> emergencyRequests)
+        {
+            var bloodGroups = await _unitOfWork.BloodGroups.GetAllAsync();
+            var componentTypes = await _unitOfWork.ComponentTypes.GetAllAsync();
+
+            var emergencyRequestDtos = new List<EmergencyBloodRequestDto>();
+
+            foreach (var request in emergencyRequests)
+            {
+                var bloodGroup = bloodGroups.FirstOrDefault(bg => bg.Id == request.BloodGroupId);
+                var componentType = componentTypes.FirstOrDefault(ct => ct.Id == request.ComponentTypeId);
+
+                var dto = _mapper.Map<EmergencyBloodRequestDto>(request);
+                dto.BloodGroupName = bloodGroup?.GroupName ?? "Unknown";
+                dto.ComponentTypeName = componentType?.Name ?? "Unknown";
+
+                emergencyRequestDtos.Add(dto);
+            }
+
+            return emergencyRequestDtos;
         }
 
         public async Task<ApiResponse<EmergencyDashboardDto>> GetEmergencyDashboardAsync()
@@ -402,8 +452,8 @@ namespace Services.Implementation
 
                 var stats = new InventoryStatisticsDto
                 {
-                    CurrentInventory = await GetInventorySummaryAsync(),
-                    CriticalItems = await GetCriticalInventoryAsync(),
+                    CurrentInventory = await GetInventorySummaryWithNamesAsync(),
+                    //CriticalItems = await GetCriticalInventoryAsync(),
                     ExpiringItems7Days = await CountExpiringItemsAsync(7),
                     ExpiringItems30Days = await CountExpiringItemsAsync(30),
                     WasteRate = await CalculateWasteRateAsync(),
@@ -707,12 +757,12 @@ namespace Services.Implementation
                 TimePeriod = $"{timeframe.StartDate:yyyy-MM-dd} to {timeframe.EndDate:yyyy-MM-dd}",
                 StartDate = timeframe.StartDate,
                 EndDate = timeframe.EndDate,
-                TotalRequests = requests.Count(),
-                EmergencyRequests = requests.Count(r => r.IsEmergency),
-                FulfilledRequests = requests.Count(r => r.Status == "Fulfilled"),
-                PendingRequests = requests.Count(r => r.Status == "Pending"),
-                CanceledRequests = requests.Count(r => r.Status == "Canceled"),
-                FulfillmentRate = requests.Any() ? (double)requests.Count(r => r.Status == "Fulfilled") / requests.Count() * 100 : 0
+                //TotalRequests = requests.Count(),
+                //EmergencyRequests = requests.Count(r => r.IsEmergency),
+                //FulfilledRequests = requests.Count(r => r.Status == "Fulfilled"),
+                //PendingRequests = requests.Count(r => r.Status == "Pending"),
+                //CanceledRequests = requests.Count(r => r.Status == "Canceled"),
+                //FulfillmentRate = requests.Any() ? (double)requests.Count(r => r.Status == "Fulfilled") / requests.Count() * 100 : 0
             };
         }
 
