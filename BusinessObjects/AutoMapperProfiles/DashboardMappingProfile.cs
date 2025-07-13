@@ -33,6 +33,8 @@ namespace BusinessObjects.AutoMapperProfiles
                 .ForMember(dest => dest.MinimumRecommended, opt => opt.Ignore()) // This is set in the service
                 .ForMember(dest => dest.CriticalityLevel, opt => opt.Ignore()) // This is set in the service
                 .ForMember(dest => dest.EstimatedDaysUntilDepletion, opt => opt.Ignore()); // This is set in the service
+                                                                                           // Map DonationEvent to DonationEventInfoDto
+            CreateMap<DonationEvent, DonationEventInfoDto>();
         }
     }
 }
