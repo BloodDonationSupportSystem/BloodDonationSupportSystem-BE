@@ -1,11 +1,11 @@
 using AutoMapper;
-using BusinessObjects.AutoMapperProfiles;
-using BusinessObjects.Data;
-using BusinessObjects.Models;
-using BusinessObjects.Dtos;
-using BloodDonationSupportSystem.Middleware;
 using BloodDonationSupportSystem.BackgroundServices;
 using BloodDonationSupportSystem.Config;
+using BloodDonationSupportSystem.Middleware;
+using BusinessObjects.AutoMapperProfiles;
+using BusinessObjects.Data;
+using BusinessObjects.Dtos;
+using BusinessObjects.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +14,11 @@ using Microsoft.OpenApi.Models;
 using Repositories.Base;
 using Repositories.Implementation;
 using Repositories.Interface;
+using Services.BackgroundServices;
 using Services.Implementation;
 using Services.Interface;
-using System.Text;
 using Shared.Hubs;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -182,6 +183,9 @@ builder.Services.AddScoped<ILocationCapacityService, LocationCapacityService>();
 
 // Register background service for donation reminders
 builder.Services.AddHostedService<DonationReminderBackgroundService>();
+
+// ??ng ký background service cho vi?c c?p nh?t tr?ng thái máu h?t h?n
+builder.Services.AddHostedService<BloodInventoryExpirationService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
