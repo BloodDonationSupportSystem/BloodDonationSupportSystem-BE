@@ -21,6 +21,7 @@ using Services.Interface;
 using Shared.Hubs;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.Azure.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 

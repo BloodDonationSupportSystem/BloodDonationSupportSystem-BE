@@ -54,29 +54,28 @@ jobs:
       with:
         name: webapp
         path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-  deploy:
-    runs-on: windows-latest
-    needs: build
-    steps:
-    - name: Download artifact from build job
-      uses: actions/download-artifact@v4
-      with:
-        name: webapp
-        path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ vars.BloodDonationSupportSystemApi_CLIENT_ID_8871 }}
-        tenant-id: ${{ vars.BloodDonationSupportSystemApi_TENANT_ID_8871 }}
-        subscription-id: ${{ vars.BloodDonationSupportSystemApi_SUBSCRIPTION_ID_8871 }}
-    - name: Deploy to Azure WebApp
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-    # Temporarily disable API Management import until Swagger generation is fixed
-    # - name: Import API into Azure API Management
-    #   run: az apim api import --path "${{ env.AZURE_APIM_RESOURCE_PATH }}" --resource-group "${{ env.AZURE_APIM_RESOURCEGROUP }}" --service-name "${{ env.AZURE_APIM_SERVICENAME }}" --api-id "${{ env.AZURE_APIM_API_ID }}" --service-url "${{ env.AZURE_APIM_APPSERVICEURL }}" --specification-path "${{ env.API_IMPORT_SPECIFICATION_PATH }}" --specification-format OpenApi --subscription-required false
-    - name: logout
-      run: >
-        az logout
+  # Deploy job disabled - using Visual Studio publish instead
+  # To enable auto-deploy, configure Azure Service Principal credentials in GitHub Secrets
+  # deploy:
+  #   runs-on: windows-latest
+  #   needs: build
+  #   steps:
+  #   - name: Download artifact from build job
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: webapp
+  #       path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+  #   - name: Azure Login
+  #     uses: azure/login@v2
+  #     with:
+  #       client-id: ${{ vars.BloodDonationSupportSystemApi_CLIENT_ID_8871 }}
+  #       tenant-id: ${{ vars.BloodDonationSupportSystemApi_TENANT_ID_8871 }}
+  #       subscription-id: ${{ vars.BloodDonationSupportSystemApi_SUBSCRIPTION_ID_8871 }}
+  #   - name: Deploy to Azure WebApp
+  #     uses: azure/webapps-deploy@v2
+  #     with:
+  #       app-name: ${{ env.AZURE_WEBAPP_NAME }}
+  #       package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+  #   - name: logout
+  #     run: >
+  #       az logout
