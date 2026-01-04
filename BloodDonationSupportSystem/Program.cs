@@ -263,7 +263,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSignalR", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "https://blood-donation-support-system-v.vercel.app"
+              )
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // This is required for SignalR with authentication
