@@ -1,10 +1,66 @@
-# 🩸 BDSS - Backend API
+<div align="center">
 
-> ASP.NET Core Web API for Blood Donation Support System
+# 🩸 BDSS Backend
 
-## 📋 Overview
+### Blood Donation Support System - Enterprise Backend API
 
-RESTful Web API built with ASP.NET Core 8.0, implementing Clean Architecture principles to provide comprehensive backend services for blood donation management, including authentication, real-time notifications, and complex business logic.
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![C#](https://img.shields.io/badge/C%23-12-239120?style=for-the-badge&logo=c-sharp&logoColor=white)](https://docs.microsoft.com/en-us/dotnet/csharp/)
+[![SQL Server](https://img.shields.io/badge/SQL%20Server-2019-CC2927?style=for-the-badge&logo=microsoft-sql-server&logoColor=white)](https://www.microsoft.com/sql-server)
+[![SignalR](https://img.shields.io/badge/SignalR-Real--time-00D4AA?style=for-the-badge&logo=microsoft&logoColor=white)](https://dotnet.microsoft.com/apps/aspnet/signalr)
+[![Swagger](https://img.shields.io/badge/Swagger-API%20Docs-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](https://swagger.io/)
+
+*A comprehensive ASP.NET Core backend API for managing blood donation operations, featuring real-time notifications, automated workflows, and intelligent donor management.*
+
+[Live API](#) • [Swagger Docs](#) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
+
+</div>
+
+---
+
+## 📋 Table of Contents
+
+- [About The Project](#-about-the-project)
+- [Key Features](#-key-features)
+- [Tech Stack](#️-tech-stack)
+- [System Architecture](#-system-architecture)
+- [Getting Started](#-getting-started)
+- [API Documentation](#-api-documentation)
+- [Database Schema](#-database-schema)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## 🎯 About The Project
+
+**BDSS Backend** is a robust, enterprise-grade RESTful Web API built with ASP.NET Core 8.0, implementing Clean Architecture principles to provide comprehensive backend services for the Blood Donation Support System. The platform digitizes and streamlines blood donation management, connecting donors with healthcare facilities while enabling efficient inventory tracking and workflow automation.
+
+### 🎓 Project Details
+- **Development Period:** 4 months (5/2025 - 8/2025)
+- **Team Size:** 1 Developer (Solo Project)
+- **Architecture:** Clean Architecture (Onion Architecture)
+- **Development Approach:** API-First Design
+
+### 💡 Problem Statement
+
+Traditional blood donation systems face significant technical challenges:
+- Manual data entry and processing leading to errors
+- Lack of real-time inventory visibility
+- Inefficient coordination between multiple stakeholders
+- No automated reminder or notification systems
+- Complex business logic requiring custom workflows
+- Limited reporting and analytics capabilities
+
+### ✅ Our Solution
+
+BDSS Backend provides a centralized, scalable API platform that:
+- Automates donation workflows with state machine patterns
+- Enables real-time updates via SignalR WebSockets
+- Implements intelligent background services for reminders
+- Provides comprehensive data validation and error handling
+- Offers RESTful endpoints following industry best practices
+- Supports role-based access control for security
 
 ## 🛠️ Technology Stack
 

@@ -273,12 +273,15 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger for both Development and Production
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-else
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Blood Donation API v1");
+    c.RoutePrefix = string.Empty; // Set Swagger UI at root URL
+});
+
+if (!app.Environment.IsDevelopment())
 {
     // Production security settings
     // Enable HSTS (HTTP Strict Transport Security) - forces HTTPS
