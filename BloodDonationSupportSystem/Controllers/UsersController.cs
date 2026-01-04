@@ -13,7 +13,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // M?c ??nh yêu c?u ??ng nh?p cho t?t c? các endpoints
+    [Authorize] // M?c ??nh yï¿½u c?u ??ng nh?p cho t?t c? cï¿½c endpoints
     public class UsersController : BaseApiController
     {
         private readonly IUserService _userService;
@@ -59,7 +59,10 @@ namespace BloodDonationSupportSystem.Controllers
         }
 
         [HttpPatch("{id}/activation")]
+        [Authorize(Roles = "Admin")] // Only Admin can change user activation status
         [ProducesResponseType(typeof(ApiResponse<UserDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> UpdateUserActivation(Guid id, [FromQuery] bool isActivated)
@@ -97,7 +100,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Users/staff/{userId}
         [HttpGet("staff/{userId}")]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có th? xem thông tin staff theo userId
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin vï¿½ Staff cï¿½ th? xem thï¿½ng tin staff theo userId
         [ProducesResponseType(typeof(ApiResponse<StaffWithLocationsDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]

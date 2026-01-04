@@ -88,8 +88,10 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/DonorProfiles/5
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể xem thông tin chi tiết một hồ sơ
+        [Authorize(Roles = "Admin,Staff")] // Only Admin and Staff can view donor profiles by profile ID
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetDonorProfile(Guid id)
@@ -103,10 +105,22 @@ namespace BloodDonationSupportSystem.Controllers
         [Authorize(Roles = "Admin,Staff,Member")] // Tất cả người dùng đã đăng nhập đều có thể xem hồ sơ theo userId
         [ProducesResponseType(typeof(ApiResponse<DonorProfileDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 404)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetDonorProfileByUserId(Guid userId)
         {
+            // Members can only view their own profile
+            var currentUserIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (currentUserIdClaim != null && User.IsInRole("Member"))
+            {
+                var currentUserId = Guid.Parse(currentUserIdClaim.Value);
+                if (currentUserId != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             var response = await _donorProfileService.GetDonorProfileByUserIdAsync(userId);
             return HandleResponse(response);
         }

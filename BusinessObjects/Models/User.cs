@@ -21,6 +21,11 @@ namespace BusinessObjects.Models
         public DateTimeOffset CreatedTime { get; set; } = DateTimeOffset.UtcNow;
         public bool IsActivated { get; set; } = true;
 
+        // Account Lockout Properties
+        public int FailedLoginAttempts { get; set; } = 0;
+        public DateTimeOffset? LockoutEnd { get; set; } = null;
+        public bool IsLockedOut => LockoutEnd.HasValue && LockoutEnd.Value > DateTimeOffset.UtcNow;
+
         // Navigation properties
         public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }

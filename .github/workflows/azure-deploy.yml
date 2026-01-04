@@ -1,0 +1,46 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'BloodDonationSupportSystem-BE/**'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: 'bdss-api'  # Thay bằng tên App Service của bạn
+  AZURE_WEBAPP_PACKAGE_PATH: './BloodDonationSupportSystem-BE/BloodDonationSupportSystem'
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+        working-directory: ./BloodDonationSupportSystem-BE
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+        working-directory: ./BloodDonationSupportSystem-BE
+
+      - name: Publish
+        run: dotnet publish BloodDonationSupportSystem/BloodDonationSupportSystem.csproj -c Release -o ./publish
+        working-directory: ./BloodDonationSupportSystem-BE
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./BloodDonationSupportSystem-BE/publish

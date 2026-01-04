@@ -11,7 +11,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // M?c ??nh yêu c?u ??ng nh?p cho t?t c? các endpoints
+    [Authorize] // M?c ??nh yï¿½u c?u ??ng nh?p cho t?t c? cï¿½c endpoints
     public class NotificationsController : BaseApiController
     {
         private readonly INotificationService _notificationService;
@@ -23,7 +23,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Notifications
         [HttpGet]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n xem t?t c? thông báo
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin vï¿½ Staff cï¿½ quy?n xem t?t c? thï¿½ng bï¿½o
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<NotificationDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -36,7 +36,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Notifications/paged?pageNumber=1&pageSize=10
         [HttpGet("paged")]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n xem danh sách thông báo phân trang
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin vï¿½ Staff cï¿½ quy?n xem danh sï¿½ch thï¿½ng bï¿½o phï¿½n trang
         [ProducesResponseType(typeof(PagedApiResponse<NotificationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -49,7 +49,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Notifications/5
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? xem chi ti?t thông báo
+        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dï¿½ng ?ï¿½ ??ng nh?p ??u cï¿½ th? xem chi ti?t thï¿½ng bï¿½o
         [ProducesResponseType(typeof(ApiResponse<NotificationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -63,7 +63,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Notifications/user/{userId}
         [HttpGet("user/{userId}")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? xem thông báo theo userId
+        [Authorize(Roles = "Admin,Staff,Member")] // All logged-in users can view notifications by userId
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<NotificationDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -71,13 +71,24 @@ namespace BloodDonationSupportSystem.Controllers
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetNotificationsByUserId(Guid userId)
         {
+            // Members can only view their own notifications
+            var currentUserIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (currentUserIdClaim != null && User.IsInRole("Member"))
+            {
+                var currentUserId = Guid.Parse(currentUserIdClaim.Value);
+                if (currentUserId != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             var response = await _notificationService.GetNotificationsByUserIdAsync(userId);
             return HandleResponse(response);
         }
 
         // GET: api/Notifications/user/{userId}/paged?pageNumber=1&pageSize=10
         [HttpGet("user/{userId}/paged")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? xem thông báo phân trang theo userId
+        [Authorize(Roles = "Admin,Staff,Member")] // All logged-in users can view paged notifications by userId
         [ProducesResponseType(typeof(PagedApiResponse<NotificationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -85,6 +96,17 @@ namespace BloodDonationSupportSystem.Controllers
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetPagedNotificationsByUserId(Guid userId, [FromQuery] NotificationParameters? parameters = null)
         {
+            // Members can only view their own notifications
+            var currentUserIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (currentUserIdClaim != null && User.IsInRole("Member"))
+            {
+                var currentUserId = Guid.Parse(currentUserIdClaim.Value);
+                if (currentUserId != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             // Provide default parameters if null
             parameters ??= new NotificationParameters();
 
@@ -94,7 +116,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // GET: api/Notifications/user/{userId}/unread
         [HttpGet("user/{userId}/unread")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? xem thông báo ch?a ??c theo userId
+        [Authorize(Roles = "Admin,Staff,Member")] // All logged-in users can view unread notifications by userId
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<NotificationDto>>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -102,13 +124,24 @@ namespace BloodDonationSupportSystem.Controllers
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetUnreadNotificationsByUserId(Guid userId)
         {
+            // Members can only view their own unread notifications
+            var currentUserIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (currentUserIdClaim != null && User.IsInRole("Member"))
+            {
+                var currentUserId = Guid.Parse(currentUserIdClaim.Value);
+                if (currentUserId != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             var response = await _notificationService.GetUnreadNotificationsByUserIdAsync(userId);
             return HandleResponse(response);
         }
 
         // GET: api/Notifications/user/{userId}/unread/count
         [HttpGet("user/{userId}/unread/count")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? xem s? l??ng thông báo ch?a ??c
+        [Authorize(Roles = "Admin,Staff,Member")] // All logged-in users can view unread count by userId
         [ProducesResponseType(typeof(ApiResponse<int>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -116,13 +149,24 @@ namespace BloodDonationSupportSystem.Controllers
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> GetUnreadCountByUserId(Guid userId)
         {
+            // Members can only view their own unread count
+            var currentUserIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (currentUserIdClaim != null && User.IsInRole("Member"))
+            {
+                var currentUserId = Guid.Parse(currentUserIdClaim.Value);
+                if (currentUserId != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             var response = await _notificationService.GetUnreadCountByUserIdAsync(userId);
             return HandleResponse(response);
         }
 
         // POST: api/Notifications
         [HttpPost]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n t?o thông báo m?i
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin vï¿½ Staff cï¿½ quy?n t?o thï¿½ng bï¿½o m?i
         [ProducesResponseType(typeof(ApiResponse<NotificationDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -141,7 +185,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // PUT: api/Notifications/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin,Staff")] // Ch? Admin và Staff có quy?n c?p nh?t thông báo
+        [Authorize(Roles = "Admin,Staff")] // Ch? Admin vï¿½ Staff cï¿½ quy?n c?p nh?t thï¿½ng bï¿½o
         [ProducesResponseType(typeof(ApiResponse<NotificationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
@@ -161,7 +205,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/Notifications/{id}/mark-read
         [HttpPost("{id}/mark-read")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? ?ánh d?u thông báo là ?ã ??c
+        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dï¿½ng ?ï¿½ ??ng nh?p ??u cï¿½ th? ?ï¿½nh d?u thï¿½ng bï¿½o lï¿½ ?ï¿½ ??c
         [ProducesResponseType(typeof(ApiResponse<NotificationDto>), 200)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -175,7 +219,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // DELETE: api/Notifications/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")] // Ch? Admin m?i có quy?n xóa thông báo
+        [Authorize(Roles = "Admin")] // Ch? Admin m?i cï¿½ quy?n xï¿½a thï¿½ng bï¿½o
         [ProducesResponseType(typeof(ApiResponse), 204)]
         [ProducesResponseType(typeof(ApiResponse), 401)]
         [ProducesResponseType(typeof(ApiResponse), 403)]
@@ -189,7 +233,7 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/Notifications/user/{userId}/mark-all-read
         [HttpPost("user/{userId}/mark-all-read")]
-        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dùng ?ã ??ng nh?p ??u có th? ?ánh d?u ?ã ??c t?t c? thông báo
+        [Authorize(Roles = "Admin,Staff,Member")] // T?t c? ng??i dï¿½ng ?ï¿½ ??ng nh?p ??u cï¿½ th? ?ï¿½nh d?u ?ï¿½ ??c t?t c? thï¿½ng bï¿½o
         [ProducesResponseType(typeof(ApiResponse), 200)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
         [ProducesResponseType(typeof(ApiResponse), 401)]

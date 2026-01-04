@@ -11,7 +11,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using System.Linq; // Add this for LINQ methods
+using System.Linq;
 
 namespace Services.Implementation
 {
@@ -19,9 +19,6 @@ namespace Services.Implementation
     {
         private readonly JwtConfig _jwtConfig;
         private readonly IUnitOfWork _unitOfWork;
-        
-        // In-memory storage for refresh tokens
-        private readonly Dictionary<string, RefreshTokenInfo> _refreshTokens = new();
 
         public JwtService(IOptions<JwtConfig> jwtConfig, IUnitOfWork unitOfWork)
         {
@@ -62,22 +59,18 @@ namespace Services.Implementation
             {
                 // Log the error but continue with default role name
                 System.Diagnostics.Debug.WriteLine($"Error loading role: {ex.Message}");
-                // Continue with the default role name
             }
 
-            // S? d?ng DateTime.UtcNow ?? ??m b?o s? d?ng ?úng ??nh d?ng th?i gian UTC
             var now = DateTime.UtcNow;
             var expiration = now.AddMinutes(_jwtConfig.AccessTokenExpirationMinutes);
             
-            // Create claims for the token - ensure no null values
+            // Create claims for the token
             var claims = new List<Claim>
             {
-                // Use ClaimTypes constants for standard claims to ensure compatibility with ASP.NET Core Authorization
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
-                // ??m b?o Role claim dùng ?úng ??nh d?ng mà ASP.NET Core Authorization middleware mong ??i
                 new Claim(ClaimTypes.Role, roleName)
             };
             
@@ -85,13 +78,13 @@ namespace Services.Implementation
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtConfig.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             
-            // Create token descriptor - s? d?ng DateTime thay vì DateTimeOffset
+            // Create token descriptor
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                NotBefore = now,                  // Th?i gian hi?n t?i
-                IssuedAt = now,                   // Th?i gian hi?n t?i 
-                Expires = expiration,             // Th?i gian hi?n t?i + th?i gian h?t h?n
+                NotBefore = now,
+                IssuedAt = now,
+                Expires = expiration,
                 SigningCredentials = creds,
                 Issuer = _jwtConfig.Issuer,
                 Audience = _jwtConfig.Audience
@@ -101,18 +94,28 @@ namespace Services.Implementation
             var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
             
-            // Generate refresh token
-            var refreshToken = GenerateRefreshToken();
-            var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtConfig.RefreshTokenExpirationDays);
+            // Generate refresh token and store in database
+            var refreshTokenString = GenerateRefreshToken();
+            var refreshTokenExpiry = DateTimeOffset.UtcNow.AddDays(_jwtConfig.RefreshTokenExpirationDays);
             
-            // Store refresh token in memory
-            StoreRefreshToken(refreshToken, user.Id, refreshTokenExpiry);
+            // Store refresh token in database
+            var refreshTokenEntity = new RefreshToken
+            {
+                Token = refreshTokenString,
+                ExpiryDate = refreshTokenExpiry,
+                UserId = user.Id,
+                IsUsed = false,
+                IsRevoked = false
+            };
             
-            // Create token response with safe values
+            await _unitOfWork.RefreshTokens.AddAsync(refreshTokenEntity);
+            await _unitOfWork.CompleteAsync();
+            
+            // Create token response
             return new TokenResponseDto
             {
                 AccessToken = tokenHandler.WriteToken(token),
-                RefreshToken = refreshToken,
+                RefreshToken = refreshTokenString,
                 Expiration = new DateTimeOffset(expiration),
                 User = new UserDto
                 {
@@ -138,7 +141,6 @@ namespace Services.Implementation
                 throw new SecurityTokenException("Invalid access token");
             }
 
-            // Replace FindFirstValue with a direct claim lookup using LINQ
             var subClaim = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
             if (subClaim == null)
             {
@@ -147,21 +149,23 @@ namespace Services.Implementation
             
             var userId = Guid.Parse(subClaim.Value);
             
-            // Validate refresh token from in-memory storage
-            var storedRefreshToken = GetRefreshToken(refreshToken);
+            // Validate refresh token from database
+            var storedRefreshToken = await _unitOfWork.RefreshTokens.GetByTokenAsync(refreshToken);
             if (storedRefreshToken == null || 
                 storedRefreshToken.UserId != userId || 
                 storedRefreshToken.IsUsed || 
                 storedRefreshToken.IsRevoked || 
-                storedRefreshToken.ExpiryDate <= DateTime.UtcNow)
+                storedRefreshToken.ExpiryDate <= DateTimeOffset.UtcNow)
             {
                 throw new SecurityTokenException("Invalid refresh token");
             }
 
-            // Mark current refresh token as used
-            MarkRefreshTokenAsUsed(refreshToken);
+            // Mark current refresh token as used in database
+            storedRefreshToken.IsUsed = true;
+            _unitOfWork.RefreshTokens.Update(storedRefreshToken);
+            await _unitOfWork.CompleteAsync();
 
-            // Get user with role included to ensure no null reference issues
+            // Get user with role included
             var user = await _unitOfWork.Users.GetByIdAsync(userId);
             if (user == null)
             {
@@ -184,19 +188,20 @@ namespace Services.Implementation
 
         public async Task RevokeRefreshTokenAsync(string refreshToken)
         {
-            var storedRefreshToken = GetRefreshToken(refreshToken);
+            var storedRefreshToken = await _unitOfWork.RefreshTokens.GetByTokenAsync(refreshToken);
             if (storedRefreshToken == null)
             {
                 throw new SecurityTokenException("Invalid refresh token");
             }
 
-            RevokeRefreshToken(refreshToken);
-            await Task.CompletedTask; // To keep method signature as async
+            storedRefreshToken.IsRevoked = true;
+            _unitOfWork.RefreshTokens.Update(storedRefreshToken);
+            await _unitOfWork.CompleteAsync();
         }
 
         private string GenerateRefreshToken()
         {
-            var randomNumber = new byte[32];
+            var randomNumber = new byte[64]; // Increased to 64 bytes for better security
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
             return Convert.ToBase64String(randomNumber);
@@ -213,7 +218,7 @@ namespace Services.Implementation
                 ValidateLifetime = false, // We're validating an expired token
                 ValidIssuer = _jwtConfig.Issuer,
                 ValidAudience = _jwtConfig.Audience,
-                ClockSkew = TimeSpan.Zero // ??m b?o không có kho?ng th?i gian khoan h?ng
+                ClockSkew = TimeSpan.Zero
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -235,54 +240,5 @@ namespace Services.Implementation
                 return null;
             }
         }
-        
-        #region Refresh Token Management
-        
-        // Store refresh token in memory
-        private void StoreRefreshToken(string token, Guid userId, DateTime expiryDate)
-        {
-            _refreshTokens[token] = new RefreshTokenInfo
-            {
-                UserId = userId,
-                ExpiryDate = expiryDate,
-                IsUsed = false,
-                IsRevoked = false
-            };
-        }
-        
-        // Get refresh token info from memory
-        private RefreshTokenInfo GetRefreshToken(string token)
-        {
-            return _refreshTokens.TryGetValue(token, out var tokenInfo) ? tokenInfo : null;
-        }
-        
-        // Mark refresh token as used
-        private void MarkRefreshTokenAsUsed(string token)
-        {
-            if (_refreshTokens.TryGetValue(token, out var tokenInfo))
-            {
-                tokenInfo.IsUsed = true;
-            }
-        }
-        
-        // Revoke refresh token
-        private void RevokeRefreshToken(string token)
-        {
-            if (_refreshTokens.TryGetValue(token, out var tokenInfo))
-            {
-                tokenInfo.IsRevoked = true;
-            }
-        }
-        
-        // Helper class for refresh token info
-        private class RefreshTokenInfo
-        {
-            public Guid UserId { get; set; }
-            public DateTime ExpiryDate { get; set; }
-            public bool IsUsed { get; set; }
-            public bool IsRevoked { get; set; }
-        }
-        
-        #endregion
     }
 }

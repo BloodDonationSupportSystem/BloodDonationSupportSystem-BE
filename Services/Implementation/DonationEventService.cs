@@ -344,12 +344,12 @@ namespace Services.Implementation
                     // Tạo user mới cho walk-in donor
                     isNewUser = true;
                     
-                    var memberRole = await _unitOfWork.Roles.GetByNameAsync("Member");
+                    var memberRole = await _unitOfWork.Roles.GetByNameAsync("Donor");
                     if (memberRole == null)
                     {
                         return new ApiResponse<DonationEventDto>(
                             HttpStatusCode.BadRequest,
-                            "Member role not found in the system");
+                            "Donor role not found in the system");
                     }
                     
                     // Tạo UserName unique cho walk-in user

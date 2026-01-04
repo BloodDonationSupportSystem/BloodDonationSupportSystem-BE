@@ -180,10 +180,10 @@ namespace Services.Implementation
         {
             try
             {
-                var memberRole = await _unitOfWork.Roles.GetByNameAsync("Member");
+                var memberRole = await _unitOfWork.Roles.GetByNameAsync("Donor");
                 if (memberRole == null)
                 {
-                    return new ApiResponse<IEnumerable<UserDto>>(HttpStatusCode.BadRequest, "Member role not found");
+                    return new ApiResponse<IEnumerable<UserDto>>(HttpStatusCode.BadRequest, "Donor role not found");
                 }
                 var members = (await _unitOfWork.Users.GetUsersByRoleIdAsync(memberRole.Id))
                     .OrderByDescending(u => u.CreatedTime)
@@ -394,10 +394,27 @@ namespace Services.Implementation
                 if (user == null)
                     return new ApiResponse<TokenResponseDto>(HttpStatusCode.Unauthorized, "Invalid username or password");
 
+                // Check if account is locked out
+                if (user.IsLockedOut)
+                {
+                    var remainingLockout = user.LockoutEnd!.Value - DateTimeOffset.UtcNow;
+                    return new ApiResponse<TokenResponseDto>(
+                        HttpStatusCode.Unauthorized, 
+                        $"Account is locked. Please try again in {Math.Ceiling(remainingLockout.TotalMinutes)} minutes.");
+                }
+
+                // Check if account is activated
+                if (!user.IsActivated)
+                {
+                    return new ApiResponse<TokenResponseDto>(HttpStatusCode.Unauthorized, "Account is deactivated. Please contact administrator.");
+                }
+
                 // Verify password
                 if (VerifyPassword(loginDto.Password, user.Password))
                 {
-                    // Update last login time
+                    // Reset failed login attempts on successful login
+                    user.FailedLoginAttempts = 0;
+                    user.LockoutEnd = null;
                     user.LastLogin = DateTimeOffset.UtcNow;
                     _unitOfWork.Users.Update(user);
                     await _unitOfWork.CompleteAsync();
@@ -419,7 +436,31 @@ namespace Services.Implementation
                     return new ApiResponse<TokenResponseDto>(tokenResponse, "Authentication successful");
                 }
 
-                return new ApiResponse<TokenResponseDto>(HttpStatusCode.Unauthorized, "Invalid username or password");
+                // Increment failed login attempts
+                user.FailedLoginAttempts++;
+                
+                // Check if we need to lock the account (default: 5 attempts, 15 minutes lockout)
+                const int maxFailedAttempts = 5;
+                const int lockoutDurationMinutes = 15;
+                
+                if (user.FailedLoginAttempts >= maxFailedAttempts)
+                {
+                    user.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(lockoutDurationMinutes);
+                    _unitOfWork.Users.Update(user);
+                    await _unitOfWork.CompleteAsync();
+                    
+                    return new ApiResponse<TokenResponseDto>(
+                        HttpStatusCode.Unauthorized, 
+                        $"Account has been locked due to too many failed login attempts. Please try again in {lockoutDurationMinutes} minutes.");
+                }
+                
+                _unitOfWork.Users.Update(user);
+                await _unitOfWork.CompleteAsync();
+                
+                int remainingAttempts = maxFailedAttempts - user.FailedLoginAttempts;
+                return new ApiResponse<TokenResponseDto>(
+                    HttpStatusCode.Unauthorized, 
+                    $"Invalid username or password. {remainingAttempts} attempt(s) remaining before account lockout.");
             }
             catch (Exception ex)
             {
@@ -492,8 +533,8 @@ namespace Services.Implementation
 
         public async Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto)
         {
-            // Default to "Member" role
-            return await RegisterUserAsync(registerDto, "Member");
+            // Default to "Donor" role
+            return await RegisterUserAsync(registerDto, "Donor");
         }
 
         public async Task<ApiResponse<UserDto>> RegisterUserAsync(RegisterUserDto registerDto, string roleName)
@@ -644,17 +685,58 @@ namespace Services.Implementation
 
         private string HashPassword(string password)
         {
-            using (SHA256 sha256 = SHA256.Create())
-            {
-                byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return Convert.ToBase64String(hashedBytes);
-            }
+            // Use BCrypt for secure password hashing with automatic salt generation
+            // Work factor of 12 provides good security while keeping performance reasonable
+            return BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
         }
 
-        private bool VerifyPassword(string password, string hashedPassword)
+        private bool VerifyPassword(string password, string storedHash)
         {
-            string hashedInput = HashPassword(password);
-            return hashedInput == hashedPassword;
+            try
+            {
+                // Check if it's a BCrypt hash (starts with $2a$, $2b$, or $2y$)
+                if (storedHash.StartsWith("$2"))
+                {
+                    return BCrypt.Net.BCrypt.Verify(password, storedHash);
+                }
+
+                // Legacy support for HMACSHA512 format (96+ bytes base64)
+                byte[] hashBytes = Convert.FromBase64String(storedHash);
+                if (hashBytes.Length >= 96)
+                {
+                    // Extract salt (first 32 bytes)
+                    byte[] salt = new byte[32];
+                    Array.Copy(hashBytes, 0, salt, 0, 32);
+
+                    // Hash the provided password with the extracted salt
+                    using (var hmac = new System.Security.Cryptography.HMACSHA512(salt))
+                    {
+                        byte[] computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
+                        
+                        // Compare the computed hash with stored hash (starting from byte 32)
+                        for (int i = 0; i < computedHash.Length; i++)
+                        {
+                            if (computedHash[i] != hashBytes[32 + i])
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                }
+
+                // Legacy SHA256 verification for oldest passwords
+                using (SHA256 sha256 = SHA256.Create())
+                {
+                    byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+                    string hashedInput = Convert.ToBase64String(hashedBytes);
+                    return hashedInput == storedHash;
+                }
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private string GenerateRandomToken()

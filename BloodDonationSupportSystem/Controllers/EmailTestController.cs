@@ -8,6 +8,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // Require authentication for all endpoints
     public class EmailTestController : ControllerBase
     {
         private readonly IEmailService _emailService;
@@ -23,7 +24,7 @@ namespace BloodDonationSupportSystem.Controllers
         /// <param name="to">Email address to send the test email to</param>
         /// <returns>Result of the email test</returns>
         [HttpGet("test")]
-        //[Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin")] // Only Admin can test email functionality
         public async Task<IActionResult> TestEmail([FromQuery] string to)
         {
             if (string.IsNullOrEmpty(to))

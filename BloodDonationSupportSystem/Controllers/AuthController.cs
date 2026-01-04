@@ -1,6 +1,7 @@
 using BusinessObjects.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Services.Interface;
 using Shared.Models;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ namespace BloodDonationSupportSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [EnableRateLimiting("AuthRateLimit")] // Apply rate limiting to all auth endpoints
     public class AuthController : BaseApiController
     {
         private readonly IUserService _userService;
@@ -20,9 +22,11 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/Auth/register-staff-with-location
         [HttpPost("register-staff-with-location")]
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")] // Only Admin can create staff accounts with location
         [ProducesResponseType(typeof(ApiResponse<UserDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 409)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> RegisterStaffWithLocation([FromBody] RegisterStaffWithLocationDto dto)
@@ -57,9 +61,11 @@ namespace BloodDonationSupportSystem.Controllers
 
         // POST: api/Auth/register-staff
         [HttpPost("register-staff")]
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")] // Only Admin can create staff accounts
         [ProducesResponseType(typeof(ApiResponse<UserDto>), 201)]
         [ProducesResponseType(typeof(ApiResponse), 400)]
+        [ProducesResponseType(typeof(ApiResponse), 401)]
+        [ProducesResponseType(typeof(ApiResponse), 403)]
         [ProducesResponseType(typeof(ApiResponse), 409)]
         [ProducesResponseType(typeof(ApiResponse), 500)]
         public async Task<IActionResult> RegisterStaff([FromBody] RegisterUserDto registerDto)

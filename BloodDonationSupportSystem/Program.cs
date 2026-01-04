@@ -7,6 +7,7 @@ using BusinessObjects.Data;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -19,6 +20,7 @@ using Services.Implementation;
 using Services.Interface;
 using Shared.Hubs;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +33,34 @@ builder.Services.Configure<Services.Implementation.EmailSettings>(builder.Config
 // Configure Donation Reminder Settings
 builder.Services.Configure<BloodDonationSupportSystem.Config.DonationReminderSettings>(
     builder.Configuration.GetSection("DonationReminderSettings"));
+
+// Add Rate Limiting to prevent brute force attacks
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    
+    // Global rate limit
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+
+    // Strict rate limit for authentication endpoints
+    options.AddPolicy("AuthRateLimit", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+});
 
 // Add JWT authentication
 builder.Services.AddAuthentication(options =>
@@ -52,7 +82,7 @@ builder.Services.AddAuthentication(options =>
             ValidIssuer = jwtConfig.Issuer,
             ValidAudience = jwtConfig.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig.Secret)),
-            ClockSkew = TimeSpan.Zero // Thi?t l?p ClockSkew th�nh 0 ?? ng?n ch?n th?i gian x�c th?c ???c n?i l?ng
+            ClockSkew = TimeSpan.Zero // Thi?t l?p ClockSkew th�nh 0 ?? ng?n ch?n th?i gian x�c th?c ???c n?i l?ng
         };
 
         // Configure SignalR JWT authentication
@@ -181,11 +211,11 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 // Location Capacity Service
 builder.Services.AddScoped<ILocationCapacityService, LocationCapacityService>();
 
-// Register background service for donation reminders
-builder.Services.AddHostedService<DonationReminderBackgroundService>();
+// Register background service for donation reminders (DISABLED for testing)
+// builder.Services.AddHostedService<DonationReminderBackgroundService>();
 
-// ??ng k� background service cho vi?c c?p nh?t tr?ng th�i m�u h?t h?n
-builder.Services.AddHostedService<BloodInventoryExpirationService>();
+// Đăng ký background service cho việc cập nhật trạng thái máu hết hạn (DISABLED for testing)
+// builder.Services.AddHostedService<BloodInventoryExpirationService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -240,8 +270,51 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    // Production security settings
+    // Enable HSTS (HTTP Strict Transport Security) - forces HTTPS
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
+
+// Add security headers
+app.Use(async (context, next) =>
+{
+    // Prevent MIME type sniffing
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    
+    // Prevent clickjacking
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    
+    // Enable XSS filtering
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+    
+    // Control referrer information
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    
+    // Content Security Policy - adjust as needed for your application
+    context.Response.Headers.Append("Content-Security-Policy", 
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self' wss: ws:;");
+    
+    // Prevent caching of sensitive data
+    if (context.Request.Path.StartsWithSegments("/api/Auth"))
+    {
+        context.Response.Headers.Append("Cache-Control", "no-store, no-cache, must-revalidate");
+        context.Response.Headers.Append("Pragma", "no-cache");
+    }
+    
+    await next();
+});
+
+// Use Rate Limiting
+app.UseRateLimiter();
 
 // Use CORS
 app.UseCors("AllowSignalR");
