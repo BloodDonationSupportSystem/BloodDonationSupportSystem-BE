@@ -102,13 +102,20 @@ builder.Services.AddAuthentication(options =>
     }
 });
 
-// Add SignalR
-builder.Services.AddSignalR(options =>
+// Add SignalR with Azure SignalR Service (when configured)
+var signalRBuilder = builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = true;
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 });
+
+// Use Azure SignalR Service if connection string is configured
+var azureSignalRConnectionString = builder.Configuration["Azure:SignalR:ConnectionString"];
+if (!string.IsNullOrEmpty(azureSignalRConnectionString))
+{
+    signalRBuilder.AddAzureSignalR(azureSignalRConnectionString);
+}
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("BDSS"),
