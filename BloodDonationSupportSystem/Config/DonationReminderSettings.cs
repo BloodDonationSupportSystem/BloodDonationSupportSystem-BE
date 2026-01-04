@@ -5,37 +5,37 @@ namespace BloodDonationSupportSystem.Config
     public class DonationReminderSettings
     {
         /// <summary>
-        /// S? ngày m?c ??nh tr??c khi ?? ?i?u ki?n ?? g?i nh?c nh?
+        /// S? ngï¿½y m?c ??nh tr??c khi ?? ?i?u ki?n ?? g?i nh?c nh?
         /// </summary>
         public int DefaultDaysBeforeEligible { get; set; } = 7;
         
         /// <summary>
-        /// Th?i gian lên l?ch ch?y hàng ngày (gi?:phút:giây)
+        /// Th?i gian lï¿½n l?ch ch?y hï¿½ng ngï¿½y (gi?:phï¿½t:giï¿½y)
         /// </summary>
         public string ScheduledRunTime { get; set; } = "08:00:00";
         
         /// <summary>
-        /// Kho?ng cách t?i thi?u gi?a các l?n g?i nh?c nh? (ngày)
+        /// Kho?ng cï¿½ch t?i thi?u gi?a cï¿½c l?n g?i nh?c nh? (ngï¿½y)
         /// </summary>
         public int MinReminderIntervalDays { get; set; } = 7;
         
         /// <summary>
-        /// S? ngày gi?a các l?n hi?n máu
+        /// S? ngï¿½y gi?a cï¿½c l?n hi?n mÃ¡u
         /// </summary>
         public int DonationIntervalDays { get; set; } = 90;
         
         /// <summary>
-        /// S? ngày gi?a các l?n hi?n máu kh?n c?p
+        /// S? ngï¿½y gi?a cï¿½c l?n hi?n mï¿½u kh?n c?p
         /// </summary>
         public int EmergencyDonationIntervalDays { get; set; } = 30;
         
         /// <summary>
-        /// Có b?t g?i nh?c nh? qua email không
+        /// Cï¿½ b?t g?i nh?c nh? qua email khï¿½ng
         /// </summary>
         public bool EnableEmailReminders { get; set; } = true;
         
         /// <summary>
-        /// Có b?t g?i nh?c nh? trong ?ng d?ng không
+        /// Cï¿½ b?t g?i nh?c nh? trong ?ng d?ng khï¿½ng
         /// </summary>
         public bool EnableInAppReminders { get; set; } = true;
     }
