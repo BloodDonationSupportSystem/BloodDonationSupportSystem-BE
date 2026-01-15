@@ -12,7 +12,7 @@
 
 *A comprehensive ASP.NET Core backend API for managing blood donation operations, featuring real-time notifications, automated workflows, and intelligent donor management.*
 
-[Swagger Docs](#-api-documentation) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
+[Live Demo](https://blood-donation-support-system-v.vercel.app/) • [Swagger Docs](https://blood-donation-api-asb9esgvbfhwfhbf.southeastasia-01.azurewebsites.net/swagger) • [Report Bug](#-contributing) • [Request Feature](#-contributing)
 
 </div>
 
@@ -623,7 +623,7 @@ Content-Type: application/json
 
 Access the full Swagger/OpenAPI documentation at:
 - **Development:** `https://localhost:5222/swagger`
-- **Production:** `https://your-domain.com/swagger`
+- **Production:** `https://blood-donation-api-asb9esgvbfhwfhbf.southeastasia-01.azurewebsites.net/swagger`
 
 The Swagger UI provides:
 - Complete endpoint documentation
