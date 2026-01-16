@@ -128,6 +128,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 errorNumbersToAdd: null);
         }));
 
+// Add Memory Cache for performance optimization
+builder.Services.AddMemoryCache();
+
 // Configure AutoMapper
 builder.Services.AddAutoMapper(config => 
 {
@@ -139,6 +142,9 @@ builder.Services.AddAutoMapper(config =>
 
 // Register repositories and services
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Cache Service
+builder.Services.AddScoped<Services.Interfaces.ICacheService, MemoryCacheService>();
 
 // JWT Service
 builder.Services.AddScoped<IJwtService, JwtService>();
